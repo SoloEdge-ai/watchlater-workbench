@@ -1,12 +1,9 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const EXTENSION_FILES = [
-  "background.js", "bilibili-content.js", "collector-runtime.js", "collectors.js", "core.js", "db.js",
-  "manifest.json", "newtab.css", "newtab.html", "newtab.js", "options.css", "options.html", "options.js",
-  "popup.css", "popup.html", "popup.js", "service.js", "youtube-content.js", "README.md", "package.json",
-  "scripts/dev-sync.js"
-];
+const EXCLUDED_DIRS = new Set([".git", "node_modules", "tests"]);
+const EXCLUDED_FILES = new Set([".gitignore", ".watchboard-dev.json", ".watchboard-dev-state.json"]);
+const STATE_FILE = ".watchboard-dev-state.json";
 
 function resolveTarget(root, explicitTarget) {
   if (explicitTarget) return path.resolve(explicitTarget);
@@ -20,22 +17,57 @@ function resolveTarget(root, explicitTarget) {
   return path.resolve(config.targetDir);
 }
 
-function syncExtension(sourceRoot, targetRoot, files = EXTENSION_FILES) {
-  if (path.resolve(sourceRoot) === path.resolve(targetRoot)) return { copied: 0, targetRoot };
-  const targetManifest = path.join(targetRoot, "manifest.json");
-  if (fs.existsSync(targetManifest)) {
-    const manifest = JSON.parse(fs.readFileSync(targetManifest, "utf8"));
-    if (manifest.name !== "稍后再看工作台") throw new Error(`目标目录不是 Watchboard 扩展：${targetRoot}`);
+function getSyncFiles(root) {
+  const files = [];
+  function walk(directory, prefix = "") {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      if (entry.isDirectory() && EXCLUDED_DIRS.has(entry.name)) continue;
+      const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) walk(path.join(directory, entry.name), relative);
+      else if (!EXCLUDED_FILES.has(entry.name) && !entry.name.endsWith(".zip")) files.push(relative);
+    }
   }
-  fs.mkdirSync(targetRoot, { recursive: true });
+  walk(root);
+  return files;
+}
+
+function safeTargetPath(targetRoot, relative) {
+  const resolvedRoot = path.resolve(targetRoot);
+  const resolved = path.resolve(resolvedRoot, relative);
+  if (resolved !== resolvedRoot && !resolved.startsWith(`${resolvedRoot}${path.sep}`)) throw new Error(`非法同步路径：${relative}`);
+  return resolved;
+}
+
+function syncExtension(sourceRoot, targetRoot, files = getSyncFiles(sourceRoot)) {
+  const source = path.resolve(sourceRoot);
+  const target = path.resolve(targetRoot);
+  if (source === target) return { copied: 0, removed: 0, targetRoot: target };
+  const targetManifest = path.join(target, "manifest.json");
+  if (!fs.existsSync(targetManifest)) throw new Error(`目标目录不存在或不是已加载的 Watchboard：${target}`);
+  const manifest = JSON.parse(fs.readFileSync(targetManifest, "utf8"));
+  if (manifest.name !== "稍后再看工作台") throw new Error(`目标目录不是 Watchboard 扩展：${target}`);
+
+  const statePath = path.join(target, STATE_FILE);
+  let previous = [];
+  if (fs.existsSync(statePath)) {
+    try { previous = JSON.parse(fs.readFileSync(statePath, "utf8")).files || []; } catch {}
+  }
+  const current = new Set(files);
+  let removed = 0;
+  for (const stale of previous) {
+    if (current.has(stale)) continue;
+    const stalePath = safeTargetPath(target, stale);
+    if (fs.existsSync(stalePath) && fs.statSync(stalePath).isFile()) { fs.rmSync(stalePath); removed += 1; }
+  }
   for (const file of files) {
-    const source = path.join(sourceRoot, file);
-    if (!fs.existsSync(source)) throw new Error(`源文件不存在：${file}`);
-    const target = path.join(targetRoot, file);
-    fs.mkdirSync(path.dirname(target), { recursive: true });
-    fs.copyFileSync(source, target);
+    const sourceFile = path.join(source, file);
+    if (!fs.existsSync(sourceFile)) throw new Error(`源文件不存在：${file}`);
+    const targetFile = safeTargetPath(target, file);
+    fs.mkdirSync(path.dirname(targetFile), { recursive: true });
+    fs.copyFileSync(sourceFile, targetFile);
   }
-  return { copied: files.length, targetRoot };
+  fs.writeFileSync(statePath, `${JSON.stringify({ files, syncedAt: new Date().toISOString() }, null, 2)}\n`);
+  return { copied: files.length, removed, targetRoot: target };
 }
 
 function parseTargetArg(args) {
@@ -48,12 +80,14 @@ function main() {
   const target = resolveTarget(root, parseTargetArg(process.argv.slice(2)));
   const run = () => {
     const result = syncExtension(root, target);
-    console.log(`[Watchboard] 已同步 ${result.copied} 个扩展文件到 ${result.targetRoot}`);
+    console.log(`[Watchboard] 已同步 ${result.copied} 个文件、清理 ${result.removed} 个旧文件：${result.targetRoot}`);
   };
   run();
   if (!process.argv.includes("--watch")) return;
   let timer;
-  for (const file of EXTENSION_FILES) fs.watch(path.join(root, file), () => {
+  fs.watch(root, { recursive: true }, (_event, filename) => {
+    const topLevel = String(filename || "").split(/[\\/]/)[0];
+    if (!filename || EXCLUDED_DIRS.has(topLevel) || EXCLUDED_FILES.has(path.basename(filename))) return;
     clearTimeout(timer);
     timer = setTimeout(() => {
       try { run(); } catch (error) { console.error(`[Watchboard] 同步失败：${error.message || error}`); }
@@ -64,4 +98,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { EXTENSION_FILES, resolveTarget, syncExtension, parseTargetArg };
+module.exports = { STATE_FILE, resolveTarget, getSyncFiles, syncExtension, parseTargetArg };

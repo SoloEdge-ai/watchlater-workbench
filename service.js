@@ -69,8 +69,10 @@
     return { settings: next };
   }
 
-  function scheduleExtensionReload(sender) {
+  async function scheduleExtensionReload(sender) {
     if (!String(sender?.url || "").startsWith(chrome.runtime.getURL(""))) throw new Error("只有扩展页面可以执行开发重载");
+    const { settings } = await getSettings();
+    if (!settings.developerMode) throw new Error("请先在设置中启用开发模式");
     setTimeout(() => chrome.runtime.reload(), 180);
     return { reloading: true };
   }
@@ -360,5 +362,5 @@
     return { payload: { version: 1, exportedAt: Date.now(), items, settings: { rules: settings.rules, searchEngine: settings.searchEngine, ai: { enabled: false, baseUrl: settings.ai.baseUrl, model: settings.ai.model, apiKey: "" } }, syncStatus } };
   }
 
-  return { handleMessage, handleTabRemoved, ensureMigrated, getLibrary, updateUserMeta, completeSourceSync };
+  return { handleMessage, handleTabRemoved, ensureMigrated, getLibrary, updateUserMeta, completeSourceSync, scheduleExtensionReload };
 });
