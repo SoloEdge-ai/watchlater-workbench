@@ -3,11 +3,27 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { resolveTarget, syncExtension, parseTargetArg } = require("../scripts/dev-sync.js");
+const { resolveTarget, getSyncFiles, syncExtension, parseTargetArg } = require("../scripts/dev-sync.js");
 
 test("developer mode defaults to the repository itself when no target is configured", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "watchboard-direct-dev-"));
   assert.equal(resolveTarget(root, "", {}), path.resolve(root));
+});
+
+test("developer sync excludes key material from discovery and rejects explicit key files", () => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "watchboard-dev-keys-"));
+  const source = path.join(temp, "source");
+  const target = path.join(temp, "target");
+  fs.mkdirSync(source); fs.mkdirSync(target);
+  const manifest = JSON.stringify({ name: "稍后再看工作台" });
+  fs.writeFileSync(path.join(source, "manifest.json"), manifest);
+  fs.writeFileSync(path.join(target, "manifest.json"), manifest);
+  fs.writeFileSync(path.join(source, "private.pem"), "secret");
+  fs.writeFileSync(path.join(source, "public.der"), "public");
+
+  assert.deepEqual(getSyncFiles(source), ["manifest.json"]);
+  assert.throws(() => syncExtension(source, target, ["manifest.json", "private.pem"]), /key material/i);
+  assert.equal(fs.existsSync(path.join(target, "private.pem")), false);
 });
 
 test("developer sync copies only the requested extension files", () => {

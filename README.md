@@ -60,6 +60,36 @@ Manifest 已提交固定公钥；运行 `npm run extension:id` 可显示确定�
 - 本机使用 Git for Windows 自带的 `C:\Program Files\Git\usr\bin\openssl.exe` 生成 2048 位 RSA 密钥并导出 DER 公钥。
 - 私钥仅在未来需要用同一身份打包时使用；普通已解压开发不读取私钥。
 
+首次生成固定身份时，在 PowerShell 执行以下命令。命令只把私钥写入受限文件，不会把私钥内容输出到终端：
+
+```powershell
+$OpenSsl = 'C:\Program Files\Git\usr\bin\openssl.exe'
+$KeyDir = 'C:\Users\Zplea\.watchboard\keys'
+$PrivateKey = Join-Path $KeyDir 'watchlater-workbench.pem'
+$PublicDer = Join-Path $KeyDir 'watchlater-workbench-public.der'
+
+& $OpenSsl version
+New-Item -ItemType Directory -Force -Path $KeyDir | Out-Null
+& $OpenSsl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out $PrivateKey
+& $OpenSsl pkey -in $PrivateKey -pubout -outform DER -out $PublicDer
+
+$CurrentUser = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+$Identity = New-Object Security.Principal.NTAccount($CurrentUser)
+$Acl = New-Object Security.AccessControl.FileSecurity
+$Acl.SetOwner($Identity)
+$Acl.SetAccessRuleProtection($true, $false)
+$Rule = New-Object Security.AccessControl.FileSystemAccessRule($CurrentUser, 'FullControl', 'Allow')
+$Acl.AddAccessRule($Rule)
+Set-Acl -LiteralPath $PrivateKey -AclObject $Acl
+
+$ManifestPath = Join-Path (Get-Location) 'manifest.json'
+$Manifest = Get-Content -Raw -Encoding utf8 $ManifestPath | ConvertFrom-Json
+$Manifest.key = [Convert]::ToBase64String([IO.File]::ReadAllBytes($PublicDer))
+$Manifest | ConvertTo-Json -Depth 20 | Set-Content -Encoding utf8 $ManifestPath
+```
+
+本机验收时 `openssl version` 应显示 `OpenSSL 3.2.3`，`npm run extension:id` 应显示 `icnojlhjlobbpfngohnkfiofephlofid`。不要提交或复制 `.pem`/`.der` 文件；开发同步和静态检查也会主动拒绝这两类密钥文件。
+
 恢复代码时从 GitHub 克隆仓库，确认 `npm run extension:id` 的输出与 Chrome 中现有 ID 一致，再点击“加载已解压”或“重新加载”。GitHub 只保存代码，不保存浏览器中的评分、分类和稍后再看快照。
 
 ## 权限

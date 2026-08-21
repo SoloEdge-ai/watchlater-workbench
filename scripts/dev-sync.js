@@ -3,7 +3,12 @@ const path = require("node:path");
 
 const EXCLUDED_DIRS = new Set([".git", "node_modules"]);
 const EXCLUDED_FILES = new Set([".gitignore", ".watchboard-dev.json", ".watchboard-dev-state.json"]);
+const KEY_EXTENSIONS = new Set([".pem", ".der"]);
 const STATE_FILE = ".watchboard-dev-state.json";
+
+function isKeyMaterial(file) {
+  return KEY_EXTENSIONS.has(path.extname(file).toLowerCase());
+}
 
 function resolveTarget(root, explicitTarget, environment = process.env) {
   if (explicitTarget) return path.resolve(explicitTarget);
@@ -22,7 +27,7 @@ function getSyncFiles(root) {
       if (entry.isDirectory() && EXCLUDED_DIRS.has(entry.name)) continue;
       const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
       if (entry.isDirectory()) walk(path.join(directory, entry.name), relative);
-      else if (!EXCLUDED_FILES.has(entry.name) && !entry.name.endsWith(".zip")) files.push(relative);
+      else if (!EXCLUDED_FILES.has(entry.name) && !entry.name.endsWith(".zip") && !isKeyMaterial(entry.name)) files.push(relative);
     }
   }
   walk(root);
@@ -40,6 +45,8 @@ function syncExtension(sourceRoot, targetRoot, files = getSyncFiles(sourceRoot))
   const source = path.resolve(sourceRoot);
   const target = path.resolve(targetRoot);
   if (source === target) return { copied: 0, removed: 0, direct: true, targetRoot: target };
+  const forbidden = files.find(isKeyMaterial);
+  if (forbidden) throw new Error(`Refusing to sync key material: ${forbidden}`);
   const targetManifest = path.join(target, "manifest.json");
   if (!fs.existsSync(targetManifest)) throw new Error(`目标目录不存在或不是已加载的 Watchboard：${target}`);
   const manifest = JSON.parse(fs.readFileSync(targetManifest, "utf8"));
