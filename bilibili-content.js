@@ -46,6 +46,15 @@
   }
 
   function findCard(anchor, bvid) {
+    const officialCard = anchor.closest?.(".bili-video-card");
+    if (officialCard) {
+      const officialIds = new Set(
+        [...officialCard.querySelectorAll(C.BILIBILI_LINK_SELECTOR)]
+          .map((link) => C.extractBilibiliVideoId(link.href))
+          .filter(Boolean)
+      );
+      if (officialIds.size === 1 && officialIds.has(bvid)) return officialCard;
+    }
     let node = anchor;
     let best = null;
     for (let depth = 0; depth < 8 && node && node !== document.body; depth += 1) {

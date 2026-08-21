@@ -181,12 +181,8 @@ test("Bilibili removal follows the official direct action on the exact video car
   };
   const anchor = {
     href: `https://www.bilibili.com/list/watchlater/?bvid=${videoId}`,
-    parentElement: null
-  };
-  const titleWrapper = {
-    innerText: "目标视频标题",
     parentElement: null,
-    querySelectorAll: () => [anchor]
+    closest: () => null
   };
   const card = {
     innerText: "目标视频标题 作者 12:34",
@@ -199,8 +195,15 @@ test("Bilibili removal follows the official direct action on the exact video car
     parentElement: null,
     querySelectorAll: () => present ? [anchor] : []
   };
-  anchor.parentElement = titleWrapper;
-  titleWrapper.parentElement = card;
+  const wrappers = Array.from({ length: 10 }, () => ({
+    innerText: "目标视频标题",
+    parentElement: null,
+    querySelectorAll: () => [anchor]
+  }));
+  anchor.parentElement = wrappers[0];
+  for (let index = 0; index < wrappers.length - 1; index += 1) wrappers[index].parentElement = wrappers[index + 1];
+  wrappers.at(-1).parentElement = card;
+  anchor.closest = (selector) => selector === ".bili-video-card" ? card : null;
   card.parentElement = body;
   const document = {
     body,
