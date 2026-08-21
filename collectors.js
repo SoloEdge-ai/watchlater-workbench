@@ -5,6 +5,8 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
+  const BILIBILI_LINK_SELECTOR = 'a[href*="/video/" i], a[href*="bvid=" i]';
+
   function clean(value) {
     return String(value || "").replace(/\s+/g, " ").trim();
   }
@@ -28,9 +30,21 @@
     try { return new URL(value, base).href; } catch { return ""; }
   }
 
+  function extractBilibiliVideoId(value) {
+    const href = absoluteUrl(value, "https://www.bilibili.com/");
+    if (!href) return "";
+    try {
+      const url = new URL(href);
+      const candidate = url.pathname.match(/\/video\/(BV[0-9A-Za-z]+)/i)?.[1] || url.searchParams.get("bvid") || "";
+      return /^BV[0-9A-Za-z]+$/i.test(candidate) ? `BV${candidate.slice(2)}` : "";
+    } catch {
+      return "";
+    }
+  }
+
   function normalizeBilibiliCandidate(candidate, now = Date.now()) {
     const href = absoluteUrl(candidate.href, "https://www.bilibili.com/");
-    const bvid = href.match(/\/video\/(BV[0-9A-Za-z]+)/i)?.[1];
+    const bvid = extractBilibiliVideoId(href);
     if (!bvid || !clean(candidate.title)) return null;
     return {
       id: `bilibili:${bvid}`,
@@ -106,5 +120,5 @@
     return unique.length === expected ? unique : null;
   }
 
-  return { clean, parseDuration, parseProgress, absoluteUrl, normalizeBilibiliCandidate, normalizeBilibiliApiResponse, normalizeYouTubeCandidate, validateCompleteSnapshot };
+  return { BILIBILI_LINK_SELECTOR, clean, parseDuration, parseProgress, absoluteUrl, extractBilibiliVideoId, normalizeBilibiliCandidate, normalizeBilibiliApiResponse, normalizeYouTubeCandidate, validateCompleteSnapshot };
 });

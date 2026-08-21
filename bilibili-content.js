@@ -4,13 +4,13 @@
 
   function scan() {
     const result = new Map();
-    const anchors = [...document.querySelectorAll('a[href*="/video/BV"]')];
+    const anchors = [...document.querySelectorAll(C.BILIBILI_LINK_SELECTOR)];
     for (const anchor of anchors) {
-      const bvid = anchor.href.match(/\/video\/(BV[0-9A-Za-z]+)/i)?.[1];
+      const bvid = C.extractBilibiliVideoId(anchor.href);
       if (!bvid) continue;
       const card = findCard(anchor, bvid);
       if (!card) continue;
-      const links = [...card.querySelectorAll('a[href*="/video/"]')].filter((link) => link.href.includes(bvid));
+      const links = [...card.querySelectorAll(C.BILIBILI_LINK_SELECTOR)].filter((link) => C.extractBilibiliVideoId(link.href) === bvid);
       const candidates = [anchor, ...links].flatMap((link) => [link.title, link.getAttribute("aria-label"), link.textContent]).map(C.clean).filter(likelyTitle);
       const title = candidates.sort((a, b) => b.length - a.length)[0];
       if (!title) continue;
@@ -36,8 +36,8 @@
     for (let depth = 0; depth < 8 && node && node !== document.body; depth += 1) {
       node = node.parentElement;
       if (!node) break;
-      const links = [...node.querySelectorAll('a[href*="/video/BV"]')];
-      const ids = new Set(links.map((link) => link.href.match(/\/video\/(BV[0-9A-Za-z]+)/i)?.[1]).filter(Boolean));
+      const links = [...node.querySelectorAll(C.BILIBILI_LINK_SELECTOR)];
+      const ids = new Set(links.map((link) => C.extractBilibiliVideoId(link.href)).filter(Boolean));
       const text = C.clean(node.innerText);
       if (ids.size === 1 && ids.has(bvid) && text.length >= 4 && text.length <= 1000) best = node;
       if (ids.size > 1 || text.length > 1000) break;
@@ -76,5 +76,5 @@
     return match ? Number(match[1].replaceAll(",", "")) : null;
   }
 
-  WLWCollectorRuntime.start({ platform: "bilibili", label: "B站稍后再看", readySelector: 'a[href*="/video/BV"]', scan, hydrate, fetchAll, expectedCount });
+  WLWCollectorRuntime.start({ platform: "bilibili", label: "B站稍后再看", readySelector: C.BILIBILI_LINK_SELECTOR, scan, hydrate, fetchAll, expectedCount });
 })();
