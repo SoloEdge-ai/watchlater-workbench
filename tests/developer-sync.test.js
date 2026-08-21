@@ -3,7 +3,12 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { syncExtension, parseTargetArg } = require("../scripts/dev-sync.js");
+const { resolveTarget, syncExtension, parseTargetArg } = require("../scripts/dev-sync.js");
+
+test("developer mode defaults to the repository itself when no target is configured", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "watchboard-direct-dev-"));
+  assert.equal(resolveTarget(root, "", {}), path.resolve(root));
+});
 
 test("developer sync copies only the requested extension files", () => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), "watchboard-dev-sync-"));

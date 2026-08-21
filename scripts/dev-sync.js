@@ -5,13 +5,11 @@ const EXCLUDED_DIRS = new Set([".git", "node_modules"]);
 const EXCLUDED_FILES = new Set([".gitignore", ".watchboard-dev.json", ".watchboard-dev-state.json"]);
 const STATE_FILE = ".watchboard-dev-state.json";
 
-function resolveTarget(root, explicitTarget) {
+function resolveTarget(root, explicitTarget, environment = process.env) {
   if (explicitTarget) return path.resolve(explicitTarget);
-  if (process.env.WATCHBOARD_CHROME_DIR) return path.resolve(process.env.WATCHBOARD_CHROME_DIR);
+  if (environment.WATCHBOARD_CHROME_DIR) return path.resolve(environment.WATCHBOARD_CHROME_DIR);
   const configPath = path.join(root, ".watchboard-dev.json");
-  if (!fs.existsSync(configPath)) {
-    throw new Error("缺少 Chrome 加载目录：请创建 .watchboard-dev.json，内容为 {\"targetDir\":\"绝对路径\"}");
-  }
+  if (!fs.existsSync(configPath)) return path.resolve(root);
   const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
   if (!config.targetDir) throw new Error(".watchboard-dev.json 缺少 targetDir");
   return path.resolve(config.targetDir);
@@ -41,7 +39,7 @@ function safeTargetPath(targetRoot, relative) {
 function syncExtension(sourceRoot, targetRoot, files = getSyncFiles(sourceRoot)) {
   const source = path.resolve(sourceRoot);
   const target = path.resolve(targetRoot);
-  if (source === target) return { copied: 0, removed: 0, targetRoot: target };
+  if (source === target) return { copied: 0, removed: 0, direct: true, targetRoot: target };
   const targetManifest = path.join(target, "manifest.json");
   if (!fs.existsSync(targetManifest)) throw new Error(`目标目录不存在或不是已加载的 Watchboard：${target}`);
   const manifest = JSON.parse(fs.readFileSync(targetManifest, "utf8"));
@@ -67,7 +65,7 @@ function syncExtension(sourceRoot, targetRoot, files = getSyncFiles(sourceRoot))
     fs.copyFileSync(sourceFile, targetFile);
   }
   fs.writeFileSync(statePath, `${JSON.stringify({ files, syncedAt: new Date().toISOString() }, null, 2)}\n`);
-  return { copied: files.length, removed, targetRoot: target };
+  return { copied: files.length, removed, direct: false, targetRoot: target };
 }
 
 function parseTargetArg(args) {
@@ -80,7 +78,9 @@ function main() {
   const target = resolveTarget(root, parseTargetArg(process.argv.slice(2)));
   const run = () => {
     const result = syncExtension(root, target);
-    console.log(`[Watchboard] 已同步 ${result.copied} 个文件、清理 ${result.removed} 个旧文件：${result.targetRoot}`);
+    console.log(result.direct
+      ? `[Watchboard] 直接加载模式：Chrome 应加载此仓库 ${result.targetRoot}`
+      : `[Watchboard] 已同步 ${result.copied} 个文件、清理 ${result.removed} 个旧文件：${result.targetRoot}`);
   };
   run();
   if (!process.argv.includes("--watch")) return;
