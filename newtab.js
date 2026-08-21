@@ -1,5 +1,6 @@
 const PAGE_SIZE = 60;
-const state = { settings: null, syncStatus: {}, query: { offset: 0, limit: PAGE_SIZE, platform: "all", category: "all", tag: "all", rating: "", duration: "all", status: "current", sort: "priority", search: "" }, items: [], total: 0, nextOffset: null, facets: { categories: [], tags: [] }, selected: new Set() };
+const SOURCE_ACTION_STATES = WLWSourceActions.STATES;
+const state = { settings: null, syncStatus: {}, sourceBindings: {}, sourceActionStatus: {}, pendingArchive: null, query: { offset: 0, limit: PAGE_SIZE, platform: "all", category: "all", tag: "all", rating: "", duration: "all", status: "current", sort: "priority", search: "" }, items: [], total: 0, nextOffset: null, facets: { categories: [], tags: [] }, selected: new Set() };
 let searchTimer;
 let libraryRequestId = 0;
 
@@ -11,6 +12,8 @@ async function init() {
   if (!settingsResult.ok) return toast(settingsResult.error, true);
   state.settings = settingsResult.settings;
   state.syncStatus = settingsResult.syncStatus || {};
+  state.sourceBindings = settingsResult.sourceBindings || {};
+  state.sourceActionStatus = settingsResult.sourceActionStatus || {};
   document.getElementById("reloadExtension").classList.toggle("hidden", !state.settings.developerMode);
   renderSyncStatus();
   await loadLibrary(true);
@@ -40,8 +43,15 @@ function bindEvents() {
   document.getElementById("aiClassify").addEventListener("click", classifyWithAi);
   document.getElementById("exportJson").addEventListener("click", exportJson);
   document.getElementById("exportCsv").addEventListener("click", exportCsv);
+  document.getElementById("archiveLocalOnly").addEventListener("click", archiveLocalOnly);
+  document.getElementById("archiveFromSource").addEventListener("click", archiveFromSource);
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && changes.wlwSyncStatus) { state.syncStatus = changes.wlwSyncStatus.newValue || {}; renderSyncStatus(); }
+    if (area === "local" && changes.wlwSourceBindings) state.sourceBindings = changes.wlwSourceBindings.newValue || {};
+    if (area === "local" && changes.wlwSourceActionStatus) {
+      state.sourceActionStatus = changes.wlwSourceActionStatus.newValue || {};
+      loadLibrary(true);
+    }
     if (area === "local" && changes.wlwDeveloperMode) document.getElementById("reloadExtension").classList.toggle("hidden", !changes.wlwDeveloperMode.newValue);
   });
 }
@@ -130,13 +140,55 @@ function createCard(item) {
   const category = document.createElement("select"); category.className = "category-edit"; category.append(new Option("自动分类", ""));
   for (const rule of state.settings.rules) category.append(new Option(rule.name, rule.name)); category.value = item.manualCategory || "";
   category.addEventListener("change", () => updateMeta(item.id, { manualCategory: category.value }));
-  const archiveButton = textNode("button", "archive-button", item.status === "archived" ? "恢复到工作台" : "移出工作台");
+  const actionStatus = state.sourceActionStatus[item.platform];
+  const recoveryError = actionStatus?.recordId === item.id && actionStatus.state === SOURCE_ACTION_STATES.PLATFORM_SUCCEEDED ? actionStatus.error || "平台已移除，本地归档正在恢复" : "";
+  const actionFailure = actionStatus?.recordId === item.id && actionStatus.state === SOURCE_ACTION_STATES.FAILED ? actionStatus.error : "";
+  const removalFailed = Boolean(actionFailure || (item.sourceRemovalState === SOURCE_ACTION_STATES.FAILED && item.sourceRemovalError));
+  const removalError = recoveryError
+    ? textNode("p", "source-removal-error recovery", recoveryError)
+    : removalFailed
+      ? textNode("p", "source-removal-error", `平台移除失败：${actionFailure || item.sourceRemovalError}`)
+      : null;
+  const archiveButton = textNode("button", "archive-button", item.status === "archived" ? "恢复到工作台" : removalFailed ? "重试移出" : "移出工作台");
   archiveButton.addEventListener("click", async () => {
-    const nextStatus = item.status === "archived" ? "current" : "archived";
-    if (nextStatus === "archived" && !confirm(`从工作台移出「${item.title}」？\n\n这不会删除 B站或 YouTube 上的原视频。`)) return;
-    await updateMeta(item.id, { status: nextStatus });
+    if (item.status === "archived") return updateMeta(item.id, { status: "current" });
+    openArchiveDialog(item);
   });
-  ratingRow.append(stars, category); body.append(title, creator, meta, ratingRow, archiveButton); card.append(thumb, progress, body); return card;
+  ratingRow.append(stars, category); body.append(title, creator, meta, ratingRow); if (removalError) body.append(removalError); body.append(archiveButton); card.append(thumb, progress, body); return card;
+}
+
+function openArchiveDialog(item) {
+  state.pendingArchive = item;
+  const binding = state.sourceBindings[item.platform];
+  const platformName = item.platform === "bilibili" ? "B站" : "YouTube";
+  const sourceButton = document.getElementById("archiveFromSource");
+  document.getElementById("archiveVideoTitle").textContent = item.title;
+  sourceButton.textContent = binding ? `同时从 ${platformName} · ${binding.name || binding.id} 移除` : `同时从 ${platformName} 移除`;
+  const matched = Boolean(binding && item.sourceAccountId && binding.id === item.sourceAccountId);
+  sourceButton.disabled = !matched;
+  document.getElementById("archiveSourceHint").textContent = matched
+    ? "平台页面会在可见标签页中打开；只有确认视频消失后，本地才会归档。"
+    : "平台删除不可用：请先使用当前账号完成一次全量同步。";
+  document.getElementById("archiveDialog").showModal();
+}
+
+async function archiveLocalOnly() {
+  const item = state.pendingArchive;
+  document.getElementById("archiveDialog").close();
+  if (!item) return;
+  await updateMeta(item.id, { status: "archived" });
+}
+
+async function archiveFromSource() {
+  const item = state.pendingArchive;
+  const button = document.getElementById("archiveFromSource");
+  if (!item || button.disabled) return;
+  button.disabled = true;
+  const result = await send({ type: "START_SOURCE_REMOVE", id: item.id });
+  document.getElementById("archiveDialog").close();
+  if (!result.ok) return toast(result.error, true);
+  toast("已打开平台页面；验证账号后将只移除这一条视频");
+  await loadLibrary(true);
 }
 
 async function updateMeta(id, patch) {

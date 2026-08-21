@@ -1,6 +1,21 @@
 (function () {
   "use strict";
   const C = WLWCollectors;
+  const SourceAdapters = WLWSourceAdapters;
+
+  async function identifyAccount() {
+    try {
+      const response = await fetch("https://api.bilibili.com/x/web-interface/nav", { credentials: "include", headers: { Accept: "application/json" } });
+      if (response.ok) {
+        const account = SourceAdapters.identifyBilibiliAccount(await response.json());
+        if (account) return account;
+      }
+    } catch {}
+    const fallback = await chrome.runtime.sendMessage({ type: "FETCH_BILI_ACCOUNT" });
+    const account = fallback?.ok ? SourceAdapters.identifyBilibiliAccount(fallback.body) : null;
+    if (!account) throw new Error(fallback?.error || "无法识别已登录的 B站账号");
+    return account;
+  }
 
   function scan() {
     const result = new Map();
@@ -76,5 +91,33 @@
     return match ? Number(match[1].replaceAll(",", "")) : null;
   }
 
-  WLWCollectorRuntime.start({ platform: "bilibili", label: "B站稍后再看", readySelector: C.BILIBILI_LINK_SELECTOR, scan, hydrate, fetchAll, expectedCount });
+  async function removeVideo(videoId, options = {}) {
+    return SourceAdapters.removeUsingMenu({
+      locateCard: () => findVideoCard(videoId),
+      findMenuButton: (card) => SourceAdapters.findPlatformMenuButton(card, "bilibili"),
+      findMenuItem: () => SourceAdapters.findRemovalMenuItem(document, "bilibili"),
+      isPresent: () => Boolean(findVideoAnchor(videoId)),
+      platformLabel: "B站",
+      allowAlreadyMissing: options.allowAlreadyMissing === true
+    });
+  }
+
+  async function findVideoCard(videoId) {
+    return SourceAdapters.findWhileScrolling(
+      () => {
+        const anchor = findVideoAnchor(videoId);
+        return anchor ? findCard(anchor, videoId) : null;
+      },
+      SourceAdapters.pageScrollEnvironment(window, document)
+    );
+  }
+
+  function findVideoAnchor(videoId) {
+    return [...document.querySelectorAll(C.BILIBILI_LINK_SELECTOR)].find((link) => C.extractBilibiliVideoId(link.href) === videoId) || null;
+  }
+
+  const adapter = { platform: "bilibili", label: "B站稍后再看", readySelector: C.BILIBILI_LINK_SELECTOR, identifyAccount, scan, hydrate, fetchAll, expectedCount, removeVideo };
+  WLWCollectorRuntime.start(adapter);
+  WLWSourceActionRuntime.start(adapter);
+
 })();

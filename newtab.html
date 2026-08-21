@@ -67,7 +67,22 @@
       <section id="videoGrid" class="video-grid" aria-live="polite"></section>
       <button id="loadMore" class="load-more hidden">加载更多</button>
     </main>
+    <dialog id="archiveDialog" class="archive-dialog">
+      <form method="dialog">
+        <button class="dialog-close" value="cancel" aria-label="关闭">×</button>
+        <p class="eyebrow">REMOVE ONE VIDEO</p>
+        <h2>如何移出这条视频？</h2>
+        <p id="archiveVideoTitle" class="dialog-title"></p>
+        <div class="dialog-actions">
+          <button value="cancel" class="subtle">取消</button>
+          <button id="archiveLocalOnly" value="local" type="button">仅移出工作台</button>
+          <button id="archiveFromSource" value="source" type="button" class="danger-action">同时从平台移除</button>
+        </div>
+        <p id="archiveSourceHint" class="dialog-hint"></p>
+      </form>
+    </dialog>
     <div id="toast" class="toast hidden"></div>
+    <script src="source-actions.js"></script>
     <script src="newtab.js"></script>
   </body>
 </html>

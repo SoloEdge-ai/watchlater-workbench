@@ -33,6 +33,14 @@ test("source refresh does not restore an item manually removed from the workbenc
   assert.equal(refreshed.status, "archived");
 });
 
+test("source refresh preserves platform removal recovery metadata", () => {
+  const existing = { id: "youtube:abc123", platform: "youtube", videoId: "abc123", title: "旧标题", sourceRemovalState: "platform_succeeded", sourceRemovalError: "本地数据库暂不可用", sourceRemovedAt: 123 };
+  const refreshed = core.mergeVideoRecord(existing, { id: existing.id, platform: "youtube", videoId: "abc123", title: "新标题", sourceRemovalState: "opening", sourceRemovalError: "" }, 300);
+  assert.equal(refreshed.sourceRemovalState, "platform_succeeded");
+  assert.equal(refreshed.sourceRemovalError, "本地数据库暂不可用");
+  assert.equal(refreshed.sourceRemovedAt, 123);
+});
+
 test("serial queue prevents later writes from overtaking earlier writes", async () => {
   const queue = core.createSerialQueue();
   const order = [];

@@ -7,29 +7,42 @@
       let timer;
       let syncing = false;
 
+      let account = null;
+      let allowIncremental = false;
       const incrementalScan = async () => {
         if (syncing) return;
         const items = adapter.scan().filter(Boolean);
         const fresh = items.filter((item) => !known.has(item.id) || recordChanged(known.get(item.id), item));
         for (const item of fresh) known.set(item.id, item);
         if (fresh.length) {
-          await sendBatches(adapter.platform, null, fresh);
-          if (adapter.hydrate) adapter.hydrate(fresh).then((hydrated) => sendBatches(adapter.platform, null, hydrated)).catch(() => {});
+          await sendBatches(adapter, null, fresh);
+          if (adapter.hydrate) adapter.hydrate(fresh).then((hydrated) => sendBatches(adapter, null, hydrated)).catch(() => {});
         }
       };
 
       await waitForPage(adapter.readySelector);
-      await incrementalScan();
-      new MutationObserver(() => {
-        clearTimeout(timer);
-        timer = setTimeout(incrementalScan, 400);
-      }).observe(document.documentElement, { childList: true, subtree: true });
-
-      const pending = await message({ type: "GET_PENDING_SYNC", platform: adapter.platform });
+      try { account = await adapter.identifyAccount(); } catch {}
+      let pending = await message({ type: "GET_PENDING_SYNC", platform: adapter.platform, account });
+      if (pending?.ok && pending.requiresBinding) {
+        const accepted = confirm(`检测到 ${adapter.label} 账号：${pending.candidate.name || pending.candidate.id}\n\n绑定该账号并开始完整同步吗？`);
+        if (!accepted) {
+          await message({ type: "SOURCE_SYNC_FAILED", platform: adapter.platform, sessionId: pending.sessionId, error: "用户取消账号绑定" });
+          return;
+        }
+        pending = await message({ type: "GET_PENDING_SYNC", platform: adapter.platform, account, confirmBinding: true });
+      }
+      allowIncremental = Boolean(pending?.allowIncremental);
       if (pending?.ok && pending.pending) {
         syncing = true;
-        await fullSync(adapter, pending.pending.sessionId);
+        allowIncremental = await fullSync(adapter, pending.pending.sessionId);
         syncing = false;
+      }
+      if (allowIncremental) {
+        await incrementalScan();
+        new MutationObserver(() => {
+          clearTimeout(timer);
+          timer = setTimeout(incrementalScan, 400);
+        }).observe(document.documentElement, { childList: true, subtree: true });
       }
     }
   };
@@ -48,12 +61,12 @@
           const expectedCount = Number(snapshot?.expectedCount);
           const items = root.WLWCollectors.validateCompleteSnapshot(snapshot?.items, expectedCount);
           if (items) {
-            await sendBatches(adapter.platform, sessionId, items);
-            const result = await message({ type: "SOURCE_SYNC_COMPLETE", platform: adapter.platform, sessionId, seenIds: items.map((item) => item.id), allowEmptySnapshot: expectedCount === 0 });
+            await sendBatches(adapter, sessionId, items);
+            const result = await message({ type: "SOURCE_SYNC_COMPLETE", platform: adapter.platform, sessionId, account: await identifyCurrentAccount(adapter), seenIds: items.map((item) => item.id), allowEmptySnapshot: expectedCount === 0 });
             if (!result?.ok) throw new Error(result?.error || "同步收尾失败");
             completed = true;
             overlay.update(`同步完成：${items.length} 条`, "success");
-            return;
+            return true;
           }
           overlay.update(`完整列表未通过数量校验，改用页面滚动采集`);
         } catch (error) {
@@ -66,8 +79,10 @@
         const fresh = items.filter((item) => !seen.has(item.id) || recordChanged(seen.get(item.id), item));
         for (const item of items) seen.set(item.id, item);
         if (fresh.length) {
-          await sendBatches(adapter.platform, sessionId, fresh);
-          if (adapter.hydrate) adapter.hydrate(fresh).then((hydrated) => sendBatches(adapter.platform, null, hydrated)).catch(() => {});
+          await sendBatches(adapter, sessionId, fresh);
+          if (adapter.hydrate) {
+            try { await sendBatches(adapter, sessionId, await adapter.hydrate(fresh)); } catch {}
+          }
         }
         overlay.update(`已收集 ${seen.size} 条 · 正在加载更多`);
         stableRounds = seen.size === lastCount && nearBottom() ? stableRounds + 1 : 0;
@@ -83,23 +98,32 @@
           throw new Error(`页面显示 ${Number.isInteger(expectedCount) && expectedCount > 0 ? expectedCount : "未知"} 条，但识别到 ${seen.size} 条；已保留原资料且未执行归档`);
         }
       }
-      const result = await message({ type: "SOURCE_SYNC_COMPLETE", platform: adapter.platform, sessionId, seenIds: [...seen.keys()] });
+      const result = await message({ type: "SOURCE_SYNC_COMPLETE", platform: adapter.platform, sessionId, account: await identifyCurrentAccount(adapter), seenIds: [...seen.keys()] });
       if (!result?.ok) throw new Error(result?.error || "同步收尾失败");
       completed = true;
       overlay.update(`同步完成：${seen.size} 条`, "success");
+      return true;
     } catch (error) {
       await message({ type: "SOURCE_SYNC_FAILED", platform: adapter.platform, sessionId, error: String(error?.message || error) });
       overlay.update(`同步未完成：${error.message || error}`, "error");
+      return false;
     } finally {
       setTimeout(() => overlay.remove(), completed ? 3500 : 8000);
     }
   }
 
-  async function sendBatches(platform, sessionId, items) {
+  async function sendBatches(adapter, sessionId, items) {
     for (let index = 0; index < items.length; index += 40) {
-      const result = await message({ type: "SOURCE_SYNC_UPSERT", platform, sessionId, items: items.slice(index, index + 40) });
+      const account = await identifyCurrentAccount(adapter);
+      const result = await message({ type: "SOURCE_SYNC_UPSERT", platform: adapter.platform, sessionId, account, items: items.slice(index, index + 40) });
       if (!result?.ok) throw new Error(result?.error || "写入本地资料库失败");
     }
+  }
+
+  async function identifyCurrentAccount(adapter) {
+    const account = await adapter.identifyAccount();
+    if (!account?.id) throw new Error("无法重新验证当前平台账号，已停止写入");
+    return account;
   }
 
   function recordChanged(previous, next) {

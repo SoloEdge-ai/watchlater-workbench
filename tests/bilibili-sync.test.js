@@ -88,7 +88,9 @@ test("Bilibili DOM scan recognizes watch-later links whose BV id is in the query
   anchor.parentElement = card;
   const context = {
     WLWCollectors: Collectors,
+    WLWSourceAdapters: require("../source-adapters.js"),
     WLWCollectorRuntime: { start: (adapter) => { capturedAdapter = adapter; } },
+    WLWSourceActionRuntime: { start() {} },
     document: {
       body,
       querySelectorAll: (selector) => selector.includes("bvid=") ? [anchor] : []

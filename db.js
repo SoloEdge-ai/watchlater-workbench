@@ -106,5 +106,25 @@
     db.close();
   }
 
-  return { openDatabase, getVideo, getVideos, getAllVideos, putVideos, completeSnapshot, clearAll };
+  async function deletePlatform(platform) {
+    const db = await openDatabase();
+    const tx = db.transaction(["videos", "snapshots"], "readwrite");
+    for (const storeName of ["videos", "snapshots"]) {
+      const index = tx.objectStore(storeName).index("platform");
+      await new Promise((resolve, reject) => {
+        const request = index.openCursor(IDBKeyRange.only(platform));
+        request.onsuccess = () => {
+          const cursor = request.result;
+          if (!cursor) return resolve();
+          cursor.delete();
+          cursor.continue();
+        };
+        request.onerror = () => reject(request.error);
+      });
+    }
+    await transactionDone(tx);
+    db.close();
+  }
+
+  return { openDatabase, getVideo, getVideos, getAllVideos, putVideos, completeSnapshot, clearAll, deletePlatform };
 });

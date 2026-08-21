@@ -9,6 +9,10 @@
         <label class="field"><span>默认搜索引擎</span><select id="searchEngine"><option value="google">Google</option><option value="bing">Bing</option><option value="baidu">百度</option></select></label>
       </section>
       <section class="panel">
+        <div class="section-head"><div><h2>平台账号绑定</h2><p>全量同步会绑定一个稳定账号。删除同步只允许作用于完全匹配的账号。</p></div></div>
+        <div id="sourceBindings" class="source-bindings"></div>
+      </section>
+      <section class="panel">
         <div class="section-head"><div><h2>本地分类规则</h2><p>关键词以逗号分隔；兴趣权重会影响智能分。</p></div><button id="addRule">添加分类</button></div>
         <div id="rules" class="rules"></div>
       </section>

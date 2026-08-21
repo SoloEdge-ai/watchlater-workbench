@@ -1,10 +1,11 @@
 let settings;
+let sourceBindings = {};
 document.addEventListener("DOMContentLoaded", init);
 
 async function init() {
   const result = await send({ type: "GET_SETTINGS" });
   if (!result.ok) return setStatus(result.error, true);
-  settings = result.settings; render(); bindEvents();
+  settings = result.settings; sourceBindings = result.sourceBindings || {}; render(); bindEvents();
 }
 
 function bindEvents() {
@@ -12,6 +13,10 @@ function bindEvents() {
   document.getElementById("addRule").addEventListener("click", () => addRule({ name: "", keywords: [], weight: 0 }));
   document.getElementById("save").addEventListener("click", save);
   document.getElementById("exportData").addEventListener("click", exportData);
+  document.getElementById("sourceBindings").addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-clear-binding]");
+    if (button) exportAndClearBinding(button.dataset.clearBinding);
+  });
 }
 
 function render() {
@@ -22,6 +27,38 @@ function render() {
   document.getElementById("aiKey").value = settings.ai.apiKey || "";
   document.getElementById("developerMode").checked = settings.developerMode;
   document.getElementById("rules").replaceChildren(); settings.rules.forEach(addRule);
+  renderSourceBindings();
+}
+
+function renderSourceBindings() {
+  const container = document.getElementById("sourceBindings");
+  container.replaceChildren();
+  for (const platform of ["bilibili", "youtube"]) {
+    const binding = sourceBindings[platform];
+    const row = document.createElement("article"); row.className = "source-binding";
+    const text = document.createElement("div");
+    const title = document.createElement("b"); title.textContent = platform === "bilibili" ? "B站" : "YouTube";
+    const detail = document.createElement("p"); detail.textContent = binding ? `${binding.name || "未命名账号"} · ${binding.id}` : "尚未绑定；请从工作台发起一次全量同步";
+    text.append(title, detail); row.append(text);
+    if (binding) {
+      const button = document.createElement("button"); button.dataset.clearBinding = platform; button.className = "danger"; button.textContent = "导出并解除绑定"; row.append(button);
+    }
+    container.append(row);
+  }
+}
+
+async function exportAndClearBinding(platform) {
+  const binding = sourceBindings[platform];
+  if (!binding) return setStatus("该平台尚未绑定", true);
+  const exported = await send({ type: "EXPORT_SOURCE_LIBRARY", platform });
+  if (!exported.ok) return setStatus(exported.error, true);
+  download(JSON.stringify(exported.payload, null, 2), `watchboard-${platform}-${new Date().toISOString().slice(0,10)}.json`);
+  const name = binding.name || binding.id;
+  if (!confirm(`已导出 ${platform === "bilibili" ? "B站" : "YouTube"} 数据。\n\n确认解除账号「${name}」的绑定吗？`)) return setStatus("已导出备份，未解除绑定");
+  if (!confirm("再次确认：这会清除该平台在工作台中的视频、快照与操作状态；另一平台不受影响。")) return setStatus("已导出备份，未解除绑定");
+  const cleared = await send({ type: "CLEAR_SOURCE_BINDING", platform, expectedAccountId: binding.id });
+  if (!cleared.ok) return setStatus(cleared.error, true);
+  delete sourceBindings[platform]; renderSourceBindings(); setStatus("该平台已解除绑定；切换账号后请重新执行全量同步");
 }
 
 function addRule(rule) {

@@ -81,7 +81,7 @@
   }
 
   function mergeVideoRecord(existing, incoming, now = Date.now()) {
-    const protectedFields = ["rating", "manualCategory", "manualTags", "manualArchived", "aiCategory", "aiTags", "aiConfidence"];
+    const protectedFields = ["rating", "manualCategory", "manualTags", "manualArchived", "aiCategory", "aiTags", "aiConfidence", "sourceRemovalState", "sourceRemovalError", "sourceRemovedAt"];
     const merged = { ...(existing || {}) };
     for (const [key, value] of Object.entries(incoming || {})) {
       if (value !== undefined && value !== null && value !== "") merged[key] = value;
