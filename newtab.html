@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>稍后再看工作台</title>
+    <link rel="stylesheet" href="newtab.css" />
+  </head>
+  <body>
+    <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
+    <main class="shell">
+      <header class="topbar">
+        <a class="brand" href="newtab.html" aria-label="稍后再看工作台">
+          <span class="brand-mark">W</span><span><b>Watchboard</b><small>稍后再看工作台</small></span>
+        </a>
+        <form id="webSearch" class="web-search">
+          <span>⌕</span><input id="webQuery" autocomplete="off" placeholder="搜索网页" /><kbd>Enter</kbd>
+        </form>
+        <button id="settingsButton" class="icon-button" title="设置">⚙</button>
+      </header>
+
+      <section class="hero">
+        <div>
+          <p class="eyebrow">YOUR WATCH QUEUE</p>
+          <h1>把稍后再看，变成真正会看的清单。</h1>
+          <p class="hero-copy">跨平台整理、评分和排序。数据只留在这台浏览器。</p>
+        </div>
+        <div class="hero-stats">
+          <div><strong id="currentCount">0</strong><span>当前视频</span></div>
+          <div><strong id="biliCount">0</strong><span>B站</span></div>
+          <div><strong id="youtubeCount">0</strong><span>YouTube</span></div>
+          <div><strong id="archiveCount">0</strong><span>已归档</span></div>
+        </div>
+      </section>
+
+      <section class="sync-grid">
+        <article class="sync-card bili">
+          <div class="platform-icon">B</div><div><b>B站稍后再看</b><p id="biliSyncStatus">尚未完整同步</p></div>
+          <button data-sync="bilibili">去同步</button>
+        </article>
+        <article class="sync-card youtube">
+          <div class="platform-icon">▶</div><div><b>YouTube Watch Later</b><p id="youtubeSyncStatus">尚未完整同步</p></div>
+          <button data-sync="youtube">去同步</button>
+        </article>
+      </section>
+
+      <section class="toolbar-panel">
+        <div class="library-search"><span>⌕</span><input id="librarySearch" placeholder="搜索标题、作者、分类或标签" /></div>
+        <div class="filters">
+          <select id="platformFilter" aria-label="平台"><option value="all">全部平台</option><option value="bilibili">B站</option><option value="youtube">YouTube</option></select>
+          <select id="categoryFilter" aria-label="分类"><option value="all">全部分类</option></select>
+          <select id="tagFilter" aria-label="标签"><option value="all">全部标签</option></select>
+          <select id="ratingFilter" aria-label="星级"><option value="">全部星级</option><option value="5">5星</option><option value="4">4星及以上</option><option value="3">3星及以上</option></select>
+          <select id="durationFilter" aria-label="时长"><option value="all">全部时长</option><option value="short">≤ 20分钟</option><option value="medium">20–60分钟</option><option value="long">＞ 60分钟</option></select>
+          <select id="statusFilter" aria-label="状态"><option value="current">当前清单</option><option value="archived">归档</option><option value="all">全部状态</option></select>
+          <select id="sortFilter" aria-label="排序"><option value="priority">智能分优先</option><option value="rating">星级优先</option><option value="recent">最近加入</option><option value="duration">时长从短到长</option></select>
+        </div>
+        <div class="batch-row">
+          <span id="resultCount">0 个结果</span>
+          <div><button id="aiClassify" class="subtle">✦ AI 分类</button><button id="exportJson" class="subtle">导出 JSON</button><button id="exportCsv" class="subtle">导出 CSV</button></div>
+        </div>
+      </section>
+
+      <section id="emptyState" class="empty hidden">
+        <div>◫</div><h2>资料库还是空的</h2><p>点击上方任一平台的“去同步”，扩展会打开已登录的稍后再看页面并采集列表。</p>
+      </section>
+      <section id="videoGrid" class="video-grid" aria-live="polite"></section>
+      <button id="loadMore" class="load-more hidden">加载更多</button>
+    </main>
+    <div id="toast" class="toast hidden"></div>
+    <script src="newtab.js"></script>
+  </body>
+</html>

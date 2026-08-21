@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>Watchboard 设置</title><link rel="stylesheet" href="options.css" /></head>
+  <body>
+    <main>
+      <header><div><p>WATCHBOARD</p><h1>设置</h1><span>配置分类、搜索和可选 AI。所有个人数据默认只保存在浏览器本地。</span></div><button id="openDashboard">返回工作台</button></header>
+      <section class="panel">
+        <h2>新标签页搜索</h2>
+        <label class="field"><span>默认搜索引擎</span><select id="searchEngine"><option value="google">Google</option><option value="bing">Bing</option><option value="baidu">百度</option></select></label>
+      </section>
+      <section class="panel">
+        <div class="section-head"><div><h2>本地分类规则</h2><p>关键词以逗号分隔；兴趣权重会影响智能分。</p></div><button id="addRule">添加分类</button></div>
+        <div id="rules" class="rules"></div>
+      </section>
+      <section class="panel">
+        <div class="section-head"><div><h2>OpenAI 兼容分类</h2><p>默认关闭。仅在工作台手动触发时发送最少的视频元数据。</p></div><label class="switch"><input id="aiEnabled" type="checkbox" /><span></span></label></div>
+        <div class="ai-grid">
+          <label class="field"><span>Base URL</span><input id="aiBaseUrl" placeholder="https://api.openai.com/v1" /></label>
+          <label class="field"><span>模型</span><input id="aiModel" placeholder="gpt-5-mini" /></label>
+          <label class="field full"><span>API Key（仅本机保存，不导出）</span><input id="aiKey" type="password" autocomplete="off" placeholder="sk-…" /></label>
+        </div>
+      </section>
+      <section class="panel">
+        <h2>数据与备份</h2><div class="data-actions"><button id="exportData">导出 JSON 备份</button><label class="file-button">导入 JSON<input id="importData" type="file" accept="application/json" /></label><button id="clearData" class="danger">清空资料库</button></div>
+      </section>
+      <div class="savebar"><span id="status"></span><button id="save" class="primary">保存设置</button></div>
+    </main>
+    <script src="options.js"></script>
+  </body>
+</html>
