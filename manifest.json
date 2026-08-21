@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "稍后再看工作台",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "在新标签页统一整理 B站与 YouTube 稍后再看。",
   "permissions": ["activeTab", "storage", "tabs"],
   "host_permissions": [

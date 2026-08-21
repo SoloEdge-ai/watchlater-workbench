@@ -1,7 +1,8 @@
-importScripts("core.js", "db.js", "service.js");
+importScripts("core.js", "db.js", "collectors.js", "service.js");
 
 chrome.runtime.onInstalled.addListener(() => WLWService.ensureMigrated());
 chrome.runtime.onStartup.addListener(() => WLWService.ensureMigrated());
+chrome.tabs.onRemoved.addListener((tabId) => WLWService.handleTabRemoved(tabId).catch(() => {}));
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   WLWService.handleMessage(message, sender)

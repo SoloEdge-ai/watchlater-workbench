@@ -41,6 +41,26 @@
     let lastCount = 0;
     let completed = false;
     try {
+      if (adapter.fetchAll) {
+        try {
+          overlay.update("正在读取登录态完整列表");
+          const snapshot = await adapter.fetchAll();
+          const expectedCount = Number(snapshot?.expectedCount);
+          const items = root.WLWCollectors.validateCompleteSnapshot(snapshot?.items, expectedCount);
+          if (items) {
+            await sendBatches(adapter.platform, sessionId, items);
+            const result = await message({ type: "SOURCE_SYNC_COMPLETE", platform: adapter.platform, sessionId, seenIds: items.map((item) => item.id), allowEmptySnapshot: expectedCount === 0 });
+            if (!result?.ok) throw new Error(result?.error || "同步收尾失败");
+            completed = true;
+            overlay.update(`同步完成：${items.length} 条`, "success");
+            return;
+          }
+          overlay.update(`完整列表未通过数量校验，改用页面滚动采集`);
+        } catch (error) {
+          overlay.update(`完整列表读取失败，改用页面滚动采集：${error.message || error}`);
+        }
+      }
+
       for (let round = 0; round < 140 && stableRounds < 8; round += 1) {
         const items = adapter.scan().filter(Boolean);
         const fresh = items.filter((item) => !seen.has(item.id) || recordChanged(seen.get(item.id), item));
@@ -57,6 +77,12 @@
       }
       if (!seen.size) throw new Error("页面中未识别到视频，请确认已登录并打开稍后再看列表");
       if (stableRounds < 8 || !nearBottom()) throw new Error("页面尚未稳定到达列表末尾，已保留原资料且未执行归档");
+      if (adapter.expectedCount) {
+        const expectedCount = Number(adapter.expectedCount());
+        if (!Number.isInteger(expectedCount) || expectedCount <= 0 || expectedCount !== seen.size) {
+          throw new Error(`页面显示 ${Number.isInteger(expectedCount) && expectedCount > 0 ? expectedCount : "未知"} 条，但识别到 ${seen.size} 条；已保留原资料且未执行归档`);
+        }
+      }
       const result = await message({ type: "SOURCE_SYNC_COMPLETE", platform: adapter.platform, sessionId, seenIds: [...seen.keys()] });
       if (!result?.ok) throw new Error(result?.error || "同步收尾失败");
       completed = true;

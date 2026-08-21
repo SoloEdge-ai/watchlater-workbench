@@ -26,6 +26,13 @@ test("source refresh preserves user metadata and AI classification", () => {
   assert.equal(refreshed.title, "新标题"); assert.equal(refreshed.rating, 5); assert.equal(refreshed.manualCategory, "学习 / 知识管理"); assert.deepEqual(refreshed.manualTags, ["必看"]); assert.equal(refreshed.aiCategory, "AI / 机器学习"); assert.equal(refreshed.firstSeenAt, 100); assert.equal(refreshed.status, "current");
 });
 
+test("source refresh does not restore an item manually removed from the workbench", () => {
+  const existing = { id: "youtube:abc123", platform: "youtube", videoId: "abc123", title: "旧标题", manualArchived: true, status: "archived" };
+  const refreshed = core.mergeVideoRecord(existing, { id: existing.id, platform: "youtube", videoId: "abc123", title: "新标题" }, 300);
+  assert.equal(refreshed.manualArchived, true);
+  assert.equal(refreshed.status, "archived");
+});
+
 test("serial queue prevents later writes from overtaking earlier writes", async () => {
   const queue = core.createSerialQueue();
   const order = [];

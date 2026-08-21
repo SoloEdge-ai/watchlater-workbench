@@ -81,7 +81,7 @@
   }
 
   function mergeVideoRecord(existing, incoming, now = Date.now()) {
-    const protectedFields = ["rating", "manualCategory", "manualTags", "aiCategory", "aiTags", "aiConfidence"];
+    const protectedFields = ["rating", "manualCategory", "manualTags", "manualArchived", "aiCategory", "aiTags", "aiConfidence"];
     const merged = { ...(existing || {}) };
     for (const [key, value] of Object.entries(incoming || {})) {
       if (value !== undefined && value !== null && value !== "") merged[key] = value;
@@ -91,7 +91,7 @@
     }
     merged.firstSeenAt = Number(existing?.firstSeenAt || incoming?.firstSeenAt || now);
     merged.lastSeenAt = Number(incoming?.lastSeenAt || now);
-    merged.status = "current";
+    merged.status = merged.manualArchived ? "archived" : "current";
     return merged;
   }
 

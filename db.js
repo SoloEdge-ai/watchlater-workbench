@@ -86,7 +86,7 @@
         if (!cursor) return resolve();
         const item = cursor.value;
         if (item.platform === platform) {
-          if (seen.has(item.id)) cursor.update({ ...item, status: "current", lastSnapshotId: snapshotId });
+          if (seen.has(item.id)) cursor.update({ ...item, status: item.manualArchived ? "archived" : "current", lastSnapshotId: snapshotId });
           else if (item.status !== "archived") cursor.update({ ...item, status: "archived", archivedAt: completedAt });
         }
         cursor.continue();

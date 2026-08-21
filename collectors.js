@@ -52,6 +52,28 @@
     };
   }
 
+  function normalizeBilibiliApiResponse(body, now = Date.now()) {
+    if (!body || body.code !== 0 || !Array.isArray(body.data?.list)) return [];
+    return body.data.list.map((video) => {
+      const item = normalizeBilibiliCandidate({
+        href: `https://www.bilibili.com/video/${video.bvid || ""}`,
+        title: video.title,
+        creator: video.owner?.name,
+        thumbnailUrl: video.pic,
+        nativeCategory: video.tname,
+        addedAt: Number(video.add_at || 0) * 1000,
+        publishedAt: Number(video.pubdate || 0) * 1000
+      }, now);
+      if (!item) return null;
+      return {
+        ...item,
+        aid: Number(video.aid || 0) || null,
+        durationSeconds: Number(video.duration || 0) || null,
+        progressSeconds: Number(video.progress || 0) || null
+      };
+    }).filter(Boolean);
+  }
+
   function normalizeYouTubeCandidate(candidate, now = Date.now()) {
     const href = absoluteUrl(candidate.href, "https://www.youtube.com/");
     let videoId = "";
@@ -77,5 +99,12 @@
     };
   }
 
-  return { clean, parseDuration, parseProgress, absoluteUrl, normalizeBilibiliCandidate, normalizeYouTubeCandidate };
+  function validateCompleteSnapshot(items, expectedCount) {
+    const expected = Number(expectedCount);
+    if (!Number.isInteger(expected) || expected < 0) return null;
+    const unique = [...new Map((items || []).filter((item) => item?.id).map((item) => [item.id, item])).values()];
+    return unique.length === expected ? unique : null;
+  }
+
+  return { clean, parseDuration, parseProgress, absoluteUrl, normalizeBilibiliCandidate, normalizeBilibiliApiResponse, normalizeYouTubeCandidate, validateCompleteSnapshot };
 });

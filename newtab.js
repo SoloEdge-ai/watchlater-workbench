@@ -100,13 +100,14 @@ function createCard(item) {
   const thumb = el("div", "thumb-wrap");
   const image = document.createElement("img"); image.loading = "lazy"; image.referrerPolicy = "no-referrer"; image.alt = ""; image.src = item.thumbnailUrl || fallbackThumbnail(item.platform);
   image.addEventListener("error", () => { image.src = fallbackThumbnail(item.platform); });
-  thumb.append(image, textNode("span", "platform-badge", item.platform === "bilibili" ? "B站" : "YouTube"), textNode("span", "score-badge", String(item.priorityScore ?? 50)));
+  const thumbLink = document.createElement("a"); thumbLink.className = "thumb-link"; thumbLink.href = item.url; thumbLink.target = "_blank"; thumbLink.rel = "noopener noreferrer"; thumbLink.title = item.title; thumbLink.append(image);
+  thumb.append(thumbLink, textNode("span", "platform-badge", item.platform === "bilibili" ? "B站" : "YouTube"), textNode("span", "score-badge", String(item.priorityScore ?? 50)));
   if (item.durationSeconds) thumb.append(textNode("span", "duration-badge", formatDuration(item.durationSeconds)));
   const checkbox = document.createElement("input"); checkbox.type = "checkbox"; checkbox.className = "select-video"; checkbox.checked = state.selected.has(item.id);
   checkbox.addEventListener("change", () => checkbox.checked ? state.selected.add(item.id) : state.selected.delete(item.id)); thumb.append(checkbox);
   const progress = el("div", "progress-track"); const fill = document.createElement("span"); fill.style.width = `${Math.min(100, item.durationSeconds ? (item.progressSeconds || 0) / item.durationSeconds * 100 : 0)}%`; progress.append(fill);
   const body = el("div", "card-body");
-  const title = textNode("a", "card-title", item.title); title.href = item.url; title.title = item.title;
+  const title = textNode("a", "card-title", item.title); title.href = item.url; title.target = "_blank"; title.rel = "noopener noreferrer"; title.title = item.title;
   const creator = textNode("p", "creator", item.creator || "未知作者");
   const meta = el("div", "meta-row"); meta.append(textNode("span", "chip primary", item.category || "待分类"));
   for (const tag of (item.tags || []).filter((tag) => tag !== item.category).slice(0, 2)) meta.append(textNode("span", "chip", tag));
@@ -122,7 +123,13 @@ function createCard(item) {
   const category = document.createElement("select"); category.className = "category-edit"; category.append(new Option("自动分类", ""));
   for (const rule of state.settings.rules) category.append(new Option(rule.name, rule.name)); category.value = item.manualCategory || "";
   category.addEventListener("change", () => updateMeta(item.id, { manualCategory: category.value }));
-  ratingRow.append(stars, category); body.append(title, creator, meta, ratingRow); card.append(thumb, progress, body); return card;
+  const archiveButton = textNode("button", "archive-button", item.status === "archived" ? "恢复到工作台" : "移出工作台");
+  archiveButton.addEventListener("click", async () => {
+    const nextStatus = item.status === "archived" ? "current" : "archived";
+    if (nextStatus === "archived" && !confirm(`从工作台移出「${item.title}」？\n\n这不会删除 B站或 YouTube 上的原视频。`)) return;
+    await updateMeta(item.id, { status: nextStatus });
+  });
+  ratingRow.append(stars, category); body.append(title, creator, meta, ratingRow, archiveButton); card.append(thumb, progress, body); return card;
 }
 
 async function updateMeta(id, patch) {

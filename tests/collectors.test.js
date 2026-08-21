@@ -18,3 +18,24 @@ test("invalid candidates are rejected", () => {
   assert.equal(collectors.normalizeBilibiliCandidate({ href: "https://example.com", title: "x" }), null);
   assert.equal(collectors.normalizeYouTubeCandidate({ href: "https://www.youtube.com/watch", title: "missing id" }), null);
 });
+
+test("Bilibili API response preserves all 402 watch-later records", () => {
+  const list = Array.from({ length: 402 }, (_, index) => ({
+    aid: 1000 + index, bvid: `BV${String(index).padStart(10, "0")}`,
+    title: `视频 ${index + 1}`, owner: { name: `UP ${index + 1}` },
+    duration: 60 + index, progress: index % 30, add_at: 1700000000 + index,
+    pubdate: 1600000000 + index, tname: "计算机技术", pic: `https://i0.hdslb.com/${index}.jpg`
+  }));
+  const items = collectors.normalizeBilibiliApiResponse({ code: 0, data: { count: 402, list } }, 2000);
+  assert.equal(items.length, 402);
+  assert.equal(items[0].aid, 1000);
+  assert.equal(items[401].id, "bilibili:BV0000000401");
+});
+
+test("complete snapshot validation rejects missing counts and duplicate IDs", () => {
+  const items = [{ id: "bilibili:BV1" }, { id: "bilibili:BV1" }];
+  assert.equal(collectors.validateCompleteSnapshot(items, undefined), null);
+  assert.equal(collectors.validateCompleteSnapshot(items, 2), null);
+  assert.deepEqual(collectors.validateCompleteSnapshot(items, 1), [{ id: "bilibili:BV1" }]);
+  assert.deepEqual(collectors.validateCompleteSnapshot([], 0), []);
+});

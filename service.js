@@ -1,6 +1,6 @@
 (function (root, factory) {
-  root.WLWService = factory(root.WLWCore, root.WLWDatabase);
-})(typeof globalThis !== "undefined" ? globalThis : this, function (Core, DB) {
+  root.WLWService = factory(root.WLWCore, root.WLWDatabase, root.WLWCollectors);
+})(typeof globalThis !== "undefined" ? globalThis : this, function (Core, DB, Collectors) {
   "use strict";
 
   const { sanitizeRules, mergeVideoRecord, enrichVideo, clean } = Core;
@@ -20,13 +20,14 @@
     await ensureMigrated();
     switch (message?.type) {
       case "START_SOURCE_SYNC": return startSourceSync(message.platform);
-      case "GET_PENDING_SYNC": return claimPendingSync(message.platform, sender.tab?.id);
-      case "SOURCE_SYNC_UPSERT": return upsertSourceItems(message.platform, message.sessionId, message.items || []);
-      case "SOURCE_SYNC_COMPLETE": return completeSourceSync(message.platform, message.sessionId, message.seenIds || [], sender.tab?.id);
-      case "SOURCE_SYNC_FAILED": return failSourceSync(message.platform, message.sessionId, message.error, sender.tab?.id);
+      case "GET_PENDING_SYNC": assertCollectorSender(sender, message.platform); return claimPendingSync(message.platform, sender.tab?.id);
+      case "SOURCE_SYNC_UPSERT": assertCollectorSender(sender, message.platform); return upsertSourceItems(message.platform, message.sessionId, message.items || []);
+      case "SOURCE_SYNC_COMPLETE": assertCollectorSender(sender, message.platform); return completeSourceSync(message.platform, message.sessionId, message.seenIds || [], sender.tab?.id, message.allowEmptySnapshot === true);
+      case "SOURCE_SYNC_FAILED": assertCollectorSender(sender, message.platform); return failSourceSync(message.platform, message.sessionId, message.error, sender.tab?.id);
       case "GET_LIBRARY": return getLibrary(message.query || {});
       case "UPDATE_USER_META": return updateUserMeta(message.id, message.patch || {});
-      case "FETCH_BILI_METADATA": return { data: await fetchBiliMetadata(message.bvid) };
+      case "FETCH_BILI_METADATA": assertCollectorSender(sender, "bilibili"); return { data: await fetchBiliMetadata(message.bvid) };
+      case "FETCH_BILI_WATCH_LATER": assertCollectorSender(sender, "bilibili"); return fetchBiliWatchLater();
       case "GET_SETTINGS": return getSettings();
       case "SAVE_SETTINGS": return saveSettings(message.settings || {});
       case "AI_CLASSIFY": return aiClassify(message.ids || []);
@@ -76,23 +77,34 @@
     const pending = { platform, sessionId, createdAt: Date.now(), state: "opening", count: 0 };
     await chrome.storage.local.set({ [`wlwPendingSync_${platform}`]: pending });
     await updateSyncStatus(platform, { state: "opening", sessionId, startedAt: Date.now(), count: 0, error: "" });
-    const tabs = await chrome.tabs.query({ url: SYNC_PATTERNS[platform] });
-    let tab;
-    if (tabs[0]) {
-      tab = await chrome.tabs.update(tabs[0].id, { active: true });
-      await chrome.windows.update(tab.windowId, { focused: true });
-      try { await chrome.tabs.reload(tab.id); } catch {}
-    } else {
-      tab = await chrome.tabs.create({ url: SYNC_URLS[platform], active: true });
+    try {
+      const tabs = await chrome.tabs.query({ url: SYNC_PATTERNS[platform] });
+      let tab;
+      if (tabs[0]) {
+        tab = await chrome.tabs.update(tabs[0].id, { active: true });
+        await chrome.windows.update(tab.windowId, { focused: true });
+        try { await chrome.tabs.reload(tab.id); } catch {}
+      } else {
+        tab = await chrome.tabs.create({ url: SYNC_URLS[platform], active: true });
+      }
+      return { sessionId, tabId: tab.id };
+    } catch (error) {
+      await chrome.storage.local.remove(`wlwPendingSync_${platform}`);
+      await updateSyncStatus(platform, { state: "error", sessionId, error: `无法打开同步页面：${error?.message || error}` });
+      throw error;
     }
-    return { sessionId, tabId: tab.id };
   }
 
   async function claimPendingSync(platform, tabId) {
     const key = `wlwPendingSync_${platform}`;
     const stored = await chrome.storage.local.get(key);
     const pending = stored[key];
-    if (!pending || Date.now() - pending.createdAt > 10 * 60 * 1000) return { pending: null };
+    if (!pending) return { pending: null };
+    if (Date.now() - pending.createdAt > 10 * 60 * 1000) {
+      await chrome.storage.local.remove(key);
+      await updateSyncStatus(platform, { state: "error", sessionId: pending.sessionId, error: "同步会话已超时，请重试" });
+      return { pending: null };
+    }
     if (pending.state === "collecting") return { pending: pending.tabId === tabId ? pending : null };
     if (pending.state !== "opening") return { pending: null };
     const claimed = { ...pending, state: "collecting", tabId, claimedAt: Date.now() };
@@ -120,13 +132,13 @@
     return { upserted: normalized.length };
   }
 
-  async function completeSourceSync(platform, sessionId, seenIds, tabId) {
+  async function completeSourceSync(platform, sessionId, seenIds, tabId, allowEmptySnapshot = false) {
     return withWriteLock(async () => {
       const key = `wlwPendingSync_${platform}`;
       const pending = (await chrome.storage.local.get(key))[key];
       if (!pending || pending.sessionId !== sessionId || pending.tabId !== tabId) throw new Error("同步会话已失效，未执行归档");
       const ids = [...new Set(seenIds.filter((id) => id.startsWith(`${platform}:`)))];
-      if (!ids.length) throw new Error("同步结果为空，未执行归档");
+      if (!ids.length && !(platform === "bilibili" && allowEmptySnapshot)) throw new Error("同步结果为空，未执行归档");
       await DB.completeSnapshot(platform, sessionId, ids);
       await chrome.storage.local.remove(key);
       await updateSyncStatus(platform, { state: "complete", sessionId, count: ids.length, lastSyncAt: Date.now(), error: "" });
@@ -141,6 +153,16 @@
     await chrome.storage.local.remove(key);
     await updateSyncStatus(platform, { state: "error", sessionId, error: clean(error) || "同步未完成" });
     return { failed: true };
+  }
+
+  async function handleTabRemoved(tabId) {
+    for (const platform of Object.keys(SYNC_URLS)) {
+      const key = `wlwPendingSync_${platform}`;
+      const pending = (await chrome.storage.local.get(key))[key];
+      if (pending?.tabId !== tabId) continue;
+      await chrome.storage.local.remove(key);
+      await updateSyncStatus(platform, { state: "error", sessionId: pending.sessionId, error: "同步页面已关闭，请重试" });
+    }
   }
 
   async function updateSyncStatus(platform, patch) {
@@ -202,7 +224,10 @@
       if (patch.rating === null || (Number.isInteger(patch.rating) && patch.rating >= 1 && patch.rating <= 5)) allowed.rating = patch.rating;
       if (Object.prototype.hasOwnProperty.call(patch, "manualCategory")) allowed.manualCategory = clean(patch.manualCategory);
       if (Array.isArray(patch.manualTags)) allowed.manualTags = patch.manualTags.map(clean).filter(Boolean).slice(0, 12);
-      if (["current", "archived"].includes(patch.status)) allowed.status = patch.status;
+      if (["current", "archived"].includes(patch.status)) {
+        allowed.manualArchived = patch.status === "archived";
+        allowed.status = patch.status;
+      }
       const item = enrichVideo({ ...existing, ...allowed }, await getRules());
       await DB.putVideos([item]);
       return { item };
@@ -250,6 +275,28 @@
     latest[bvid] = data;
     await chrome.storage.local.set({ [CACHE_KEY]: latest });
     return data;
+  }
+
+  function assertCollectorSender(sender, platform) {
+    let url;
+    try { url = new URL(sender?.tab?.url || ""); } catch { throw new Error("采集消息来源无效"); }
+    const allowed = platform === "bilibili"
+      ? url.hostname === "www.bilibili.com" && url.pathname.startsWith("/watchlater/")
+      : platform === "youtube" && ["www.youtube.com", "youtube.com"].includes(url.hostname) && url.pathname === "/playlist" && url.searchParams.get("list") === "WL";
+    if (!allowed) throw new Error("采集消息来源不受信任");
+  }
+
+  async function fetchBiliWatchLater() {
+    const response = await fetch("https://api.bilibili.com/x/v2/history/toview", {
+      credentials: "include",
+      headers: { Accept: "application/json" }
+    });
+    if (!response.ok) throw new Error(`B站稍后再看请求失败 (${response.status})`);
+    const body = await response.json();
+    if (body?.code !== 0 || !Array.isArray(body.data?.list)) {
+      throw new Error(body?.message || "未取得 B站稍后再看列表");
+    }
+    return { items: Collectors.normalizeBilibiliApiResponse(body), expectedCount: Number(body.data.count) };
   }
 
   async function aiClassify(ids) {
@@ -301,5 +348,5 @@
     return { payload: { version: 1, exportedAt: Date.now(), items, settings: { rules: settings.rules, searchEngine: settings.searchEngine, ai: { enabled: false, baseUrl: settings.ai.baseUrl, model: settings.ai.model, apiKey: "" } }, syncStatus } };
   }
 
-  return { handleMessage, ensureMigrated, getLibrary, updateUserMeta, completeSourceSync };
+  return { handleMessage, handleTabRemoved, ensureMigrated, getLibrary, updateUserMeta, completeSourceSync };
 });

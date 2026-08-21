@@ -65,5 +65,16 @@
     return output;
   }
 
-  WLWCollectorRuntime.start({ platform: "bilibili", label: "B站稍后再看", readySelector: 'a[href*="/video/BV"]', scan, hydrate });
+  async function fetchAll() {
+    const response = await chrome.runtime.sendMessage({ type: "FETCH_BILI_WATCH_LATER" });
+    if (!response?.ok || !Array.isArray(response.items)) throw new Error(response?.error || "无法读取 B站稍后再看列表");
+    return { items: response.items, expectedCount: response.expectedCount };
+  }
+
+  function expectedCount() {
+    const match = document.body?.innerText?.match(/稍后再看\s*[·•]\s*([\d,]+)/);
+    return match ? Number(match[1].replaceAll(",", "")) : null;
+  }
+
+  WLWCollectorRuntime.start({ platform: "bilibili", label: "B站稍后再看", readySelector: 'a[href*="/video/BV"]', scan, hydrate, fetchAll, expectedCount });
 })();
