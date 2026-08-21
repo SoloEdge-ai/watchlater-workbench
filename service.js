@@ -22,8 +22,8 @@
       case "START_SOURCE_SYNC": return startSourceSync(message.platform);
       case "GET_PENDING_SYNC": return claimPendingSync(message.platform, sender.tab?.id);
       case "SOURCE_SYNC_UPSERT": return upsertSourceItems(message.platform, message.sessionId, message.items || []);
-      case "SOURCE_SYNC_COMPLETE": return completeSourceSync(message.platform, message.sessionId, message.seenIds || []);
-      case "SOURCE_SYNC_FAILED": return failSourceSync(message.platform, message.sessionId, message.error);
+      case "SOURCE_SYNC_COMPLETE": return completeSourceSync(message.platform, message.sessionId, message.seenIds || [], sender.tab?.id);
+      case "SOURCE_SYNC_FAILED": return failSourceSync(message.platform, message.sessionId, message.error, sender.tab?.id);
       case "GET_LIBRARY": return getLibrary(message.query || {});
       case "UPDATE_USER_META": return updateUserMeta(message.id, message.patch || {});
       case "FETCH_BILI_METADATA": return { data: await fetchBiliMetadata(message.bvid) };
@@ -93,6 +93,8 @@
     const stored = await chrome.storage.local.get(key);
     const pending = stored[key];
     if (!pending || Date.now() - pending.createdAt > 10 * 60 * 1000) return { pending: null };
+    if (pending.state === "collecting") return { pending: pending.tabId === tabId ? pending : null };
+    if (pending.state !== "opening") return { pending: null };
     const claimed = { ...pending, state: "collecting", tabId, claimedAt: Date.now() };
     await chrome.storage.local.set({ [key]: claimed });
     await updateSyncStatus(platform, { state: "collecting", sessionId: claimed.sessionId, startedAt: claimed.createdAt, count: 0, error: "" });
@@ -118,11 +120,11 @@
     return { upserted: normalized.length };
   }
 
-  async function completeSourceSync(platform, sessionId, seenIds) {
+  async function completeSourceSync(platform, sessionId, seenIds, tabId) {
     return withWriteLock(async () => {
       const key = `wlwPendingSync_${platform}`;
       const pending = (await chrome.storage.local.get(key))[key];
-      if (!pending || pending.sessionId !== sessionId) throw new Error("同步会话已失效，未执行归档");
+      if (!pending || pending.sessionId !== sessionId || pending.tabId !== tabId) throw new Error("同步会话已失效，未执行归档");
       const ids = [...new Set(seenIds.filter((id) => id.startsWith(`${platform}:`)))];
       if (!ids.length) throw new Error("同步结果为空，未执行归档");
       await DB.completeSnapshot(platform, sessionId, ids);
@@ -132,10 +134,11 @@
     });
   }
 
-  async function failSourceSync(platform, sessionId, error) {
+  async function failSourceSync(platform, sessionId, error, tabId) {
     const key = `wlwPendingSync_${platform}`;
     const pending = (await chrome.storage.local.get(key))[key];
-    if (pending?.sessionId === sessionId) await chrome.storage.local.remove(key);
+    if (pending?.sessionId !== sessionId || pending?.tabId !== tabId) return { failed: false };
+    await chrome.storage.local.remove(key);
     await updateSyncStatus(platform, { state: "error", sessionId, error: clean(error) || "同步未完成" });
     return { failed: true };
   }
@@ -288,9 +291,7 @@
       if (!response.ok) throw new Error(`AI 请求失败 (${response.status})`);
       const content = (await response.json()).choices?.[0]?.message?.content;
       if (!content) throw new Error("AI 未返回分类内容");
-      const parsed = JSON.parse(content.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, ""));
-      const allowed = new Set(rules.map((rule) => rule.name));
-      return (Array.isArray(parsed.items) ? parsed.items : []).filter((item) => item?.id && allowed.has(item.primaryCategory));
+      return Core.parseAiClassificationResponse(content, rules.map((rule) => rule.name));
     } finally { clearTimeout(timeout); }
   }
 

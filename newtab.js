@@ -71,6 +71,7 @@ function renderSyncStatus() {
 
 function setSyncText(id, status) {
   const node = document.getElementById(id);
+  if (status?.state === "error") { node.textContent = `同步失败 · ${status.error || "请重试"}`; return; }
   if (!status?.lastSyncAt) node.textContent = status?.state === "collecting" ? `同步中 · 已收集 ${status.count || 0} 条` : "尚未完整同步";
   else node.textContent = `${formatRelative(status.lastSyncAt)} · ${status.count || 0} 条`;
 }

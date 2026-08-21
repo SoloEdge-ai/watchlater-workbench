@@ -110,5 +110,11 @@
     };
   }
 
-  return { DEFAULT_RULES, clamp, clean, sanitizeRules, classifyVideo, mergeVideoRecord, enrichVideo, computePriorityScore, createSerialQueue };
+  function parseAiClassificationResponse(content, allowedCategories) {
+    const parsed = JSON.parse(String(content || "").replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, ""));
+    const allowed = new Set(allowedCategories || []);
+    return (Array.isArray(parsed.items) ? parsed.items : []).filter((item) => item?.id && allowed.has(item.primaryCategory));
+  }
+
+  return { DEFAULT_RULES, clamp, clean, sanitizeRules, classifyVideo, mergeVideoRecord, enrichVideo, computePriorityScore, createSerialQueue, parseAiClassificationResponse };
 });

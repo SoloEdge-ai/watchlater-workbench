@@ -47,3 +47,13 @@ test("one thousand cached records can be classified and sorted within one second
   assert.equal(items.length, 1000);
   assert.ok(performance.now() - started < 1000);
 });
+
+test("AI response parser rejects malformed JSON and unknown categories", () => {
+  assert.throws(() => core.parseAiClassificationResponse("not json", ["AI / 机器学习"]));
+  const result = core.parseAiClassificationResponse(JSON.stringify({ items: [
+    { id: "youtube:1", primaryCategory: "AI / 机器学习", tags: ["LLM"], confidence: 0.9 },
+    { id: "youtube:2", primaryCategory: "未知分类", tags: [] }
+  ] }), ["AI / 机器学习"]);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].id, "youtube:1");
+});
