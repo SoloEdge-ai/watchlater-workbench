@@ -101,6 +101,24 @@ test("Bilibili menu buttons require known semantics rather than fuzzy class name
   assert.equal(Adapters.findPlatformMenuButton({ querySelectorAll: () => [fuzzy, unknownMenu] }, "bilibili"), null);
 });
 
+test("Bilibili menu button recognizes the current official card dropdown component", () => {
+  const dropdown = {
+    getAttribute: (name) => name === "class" ? "bili-card-dropdown" : ""
+  };
+  const card = { querySelectorAll: () => [dropdown] };
+
+  assert.equal(Adapters.findPlatformMenuButton(card, "bilibili"), dropdown);
+});
+
+test("Bilibili removal item recognizes the current official dropdown popper component", () => {
+  const item = { textContent: "移出稍后再看", closest: () => null };
+  const document = {
+    querySelectorAll: (selector) => selector.includes(".bili-card-dropdown-popper__item") ? [item] : []
+  };
+
+  assert.equal(Adapters.findRemovalMenuItem(document, "bilibili"), item);
+});
+
 test("progressive item lookup shares one stable end-of-list policy", async () => {
   let rounds = 0;
   const environment = {

@@ -65,7 +65,8 @@
   }
 
   function findRemovalMenuItem(document, platform) {
-    const selector = "ytd-menu-service-item-renderer, tp-yt-paper-item, [role='menuitem'], .vui_popover li, .vui_popover button";
+    const selector = "ytd-menu-service-item-renderer, tp-yt-paper-item, [role='menuitem'], .vui_popover li, .vui_popover button"
+      + (platform === "bilibili" ? ", .bili-card-dropdown-popper__item" : "");
     return [...(document?.querySelectorAll?.(selector) || [])].find((item) => {
       const hidden = item.closest?.("[hidden], [aria-hidden='true']");
       return !hidden && isRemovalLabel(platform, item.textContent);
@@ -73,10 +74,15 @@
   }
 
   function findPlatformMenuButton(card, platform) {
-    const candidates = card?.querySelectorAll?.("button, [role='button']") || [];
+    const selector = platform === "bilibili"
+      ? "button, [role='button'], .bili-card-dropdown"
+      : "button, [role='button']";
+    const candidates = card?.querySelectorAll?.(selector) || [];
     return [...candidates].find((button) => {
       const label = clean(button.getAttribute?.("aria-label") || button.getAttribute?.("title"));
-      return MENU_BUTTON_LABELS[platform]?.has(label) === true;
+      if (MENU_BUTTON_LABELS[platform]?.has(label) === true) return true;
+      const classes = clean(button.getAttribute?.("class")).split(" ");
+      return platform === "bilibili" && classes.includes("bili-card-dropdown");
     }) || null;
   }
 
