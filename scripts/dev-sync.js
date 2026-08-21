@@ -1,7 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const EXCLUDED_DIRS = new Set([".git", "node_modules", "tests"]);
+const EXCLUDED_DIRS = new Set([".git", "node_modules"]);
 const EXCLUDED_FILES = new Set([".gitignore", ".watchboard-dev.json", ".watchboard-dev-state.json"]);
 const STATE_FILE = ".watchboard-dev-state.json";
 
