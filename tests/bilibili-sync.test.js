@@ -1,0 +1,68 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const vm = require("node:vm");
+const Collectors = require("../collectors.js");
+
+function makeList(length) {
+  return Array.from({ length }, (_, index) => ({
+    aid: 1000 + index,
+    bvid: `BV${String(index).padStart(10, "0")}`,
+    title: `视频 ${index + 1}`,
+    owner: { name: `UP ${index + 1}` },
+    duration: 60 + index,
+    progress: 0,
+    add_at: 1700000000 + index,
+    pubdate: 1600000000 + index,
+    tname: "计算机技术",
+    pic: `https://i0.hdslb.com/${index}.jpg`
+  }));
+}
+
+test("Bilibili full sync uses the web endpoint and returns all 404 visible items", async () => {
+  const requests = [];
+  const context = {
+    URL,
+    setTimeout,
+    clearTimeout,
+    WLWCore: {
+      sanitizeRules: (value) => value || [],
+      mergeVideoRecord: () => {},
+      enrichVideo: (value) => value,
+      clean: (value) => String(value || "").trim(),
+      createSerialQueue: () => (task) => task()
+    },
+    WLWDatabase: {},
+    WLWCollectors: Collectors,
+    chrome: {
+      storage: {
+        local: {
+          get: async () => ({ wlwMigratedV1: true }),
+          set: async () => {},
+          remove: async () => {}
+        }
+      }
+    },
+    fetch: async (url) => {
+      requests.push(url);
+      const full = String(url).includes("/web?");
+      return {
+        ok: true,
+        json: async () => ({ code: 0, data: { count: 404, list: makeList(full ? 404 : 1) } })
+      };
+    }
+  };
+  context.globalThis = context;
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "service.js"), "utf8"), context);
+
+  const result = await context.WLWService.handleMessage(
+    { type: "FETCH_BILI_WATCH_LATER" },
+    { tab: { url: "https://www.bilibili.com/watchlater/list#/list" } }
+  );
+
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0], "https://api.bilibili.com/x/v2/history/toview/web?jsonp=jsonp");
+  assert.equal(result.expectedCount, 404);
+  assert.equal(result.items.length, 404);
+});

@@ -301,7 +301,7 @@
   }
 
   async function fetchBiliWatchLater() {
-    const response = await fetch("https://api.bilibili.com/x/v2/history/toview", {
+    const response = await fetch("https://api.bilibili.com/x/v2/history/toview/web?jsonp=jsonp", {
       credentials: "include",
       headers: { Accept: "application/json" }
     });
