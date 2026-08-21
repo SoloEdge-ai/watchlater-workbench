@@ -12,8 +12,6 @@ function bindEvents() {
   document.getElementById("addRule").addEventListener("click", () => addRule({ name: "", keywords: [], weight: 0 }));
   document.getElementById("save").addEventListener("click", save);
   document.getElementById("exportData").addEventListener("click", exportData);
-  document.getElementById("importData").addEventListener("change", importData);
-  document.getElementById("clearData").addEventListener("click", clearData);
 }
 
 function render() {
@@ -40,7 +38,7 @@ async function save() {
   if (!rules.length) return setStatus("至少保留一个有效分类规则", true);
   const ai = { enabled: document.getElementById("aiEnabled").checked, baseUrl: document.getElementById("aiBaseUrl").value.trim(), model: document.getElementById("aiModel").value.trim(), apiKey: document.getElementById("aiKey").value };
   if (ai.enabled) {
-    let origin; try { origin = `${new URL(ai.baseUrl).origin}/*`; } catch { return setStatus("AI Base URL 无效", true); }
+    let origin; try { const url = new URL(ai.baseUrl); origin = `${url.protocol}//${url.hostname}/*`; } catch { return setStatus("AI Base URL 无效", true); }
     const granted = await chrome.permissions.request({ origins: [origin] }); if (!granted) return setStatus("未获得 AI 接口来源权限", true);
   }
   const result = await send({ type:"SAVE_SETTINGS", settings:{ rules, searchEngine:document.getElementById("searchEngine").value, ai } });
@@ -48,8 +46,6 @@ async function save() {
 }
 
 async function exportData() { const result=await send({type:"EXPORT_LIBRARY"}); if(!result.ok)return setStatus(result.error,true); download(JSON.stringify(result.payload,null,2),`watchboard-backup-${new Date().toISOString().slice(0,10)}.json`); }
-async function importData(event) { const file=event.target.files?.[0]; if(!file)return; try{const payload=JSON.parse(await file.text()); const result=await send({type:"IMPORT_LIBRARY",payload}); if(!result.ok)throw new Error(result.error); setStatus(`已导入 ${result.imported} 条记录`); const fresh=await send({type:"GET_SETTINGS"}); settings=fresh.settings; render();}catch(error){setStatus(error.message,true)} finally{event.target.value="";} }
-async function clearData(){if(!confirm("确定清空所有视频、评分和归档记录？分类及 AI 设置会保留。"))return; const result=await send({type:"CLEAR_LIBRARY"}); setStatus(result.ok?"资料库已清空":result.error,!result.ok);}
 function download(content,filename){const url=URL.createObjectURL(new Blob([content],{type:"application/json"}));const a=document.createElement("a");a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 function setStatus(text,error=false){const node=document.getElementById("status");node.textContent=text;node.style.color=error?"#b23d50":"#378057";}
 function send(payload){return chrome.runtime.sendMessage(payload).catch((error)=>({ok:false,error:String(error?.message||error)}));}

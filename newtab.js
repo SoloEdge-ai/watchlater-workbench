@@ -1,6 +1,7 @@
 const PAGE_SIZE = 60;
 const state = { settings: null, syncStatus: {}, query: { offset: 0, limit: PAGE_SIZE, platform: "all", category: "all", tag: "all", rating: "", duration: "all", status: "current", sort: "priority", search: "" }, items: [], total: 0, nextOffset: null, facets: { categories: [], tags: [] }, selected: new Set() };
 let searchTimer;
+let libraryRequestId = 0;
 
 document.addEventListener("DOMContentLoaded", init);
 
@@ -44,10 +45,12 @@ async function startSync(platform) {
 }
 
 async function loadLibrary(reset) {
+  const requestId = ++libraryRequestId;
   if (reset) { state.query.offset = 0; state.items = []; state.selected.clear(); }
   else if (state.nextOffset !== null) state.query.offset = state.nextOffset;
   else return;
   const result = await send({ type: "GET_LIBRARY", query: state.query });
+  if (requestId !== libraryRequestId) return;
   if (!result.ok) return toast(result.error, true);
   state.lastBatch = result.items; state.items.push(...result.items); state.total = result.total; state.nextOffset = result.nextOffset; state.facets = result.facets;
   renderStats(result.stats); renderFacets(); renderVideos(reset);
@@ -106,6 +109,10 @@ function createCard(item) {
   const creator = textNode("p", "creator", item.creator || "未知作者");
   const meta = el("div", "meta-row"); meta.append(textNode("span", "chip primary", item.category || "待分类"));
   for (const tag of (item.tags || []).filter((tag) => tag !== item.category).slice(0, 2)) meta.append(textNode("span", "chip", tag));
+  const editTags = textNode("button", "chip", "＋标签"); editTags.title = "编辑手动标签"; editTags.addEventListener("click", async () => {
+    const value = prompt("手动标签，用逗号分隔", (item.manualTags || []).join(", ")); if (value === null) return;
+    await updateMeta(item.id, { manualTags: value.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean) });
+  }); meta.append(editTags);
   const ratingRow = el("div", "rating-row"); const stars = el("div", "stars");
   for (let rating = 1; rating <= 5; rating += 1) {
     const star = textNode("button", `star${Number(item.rating || 0) >= rating ? " active" : ""}`, "★"); star.title = `${rating} 星想看程度`;
@@ -126,7 +133,7 @@ async function updateMeta(id, patch) {
 async function classifyWithAi() {
   let ids = [...state.selected];
   if (!ids.length) {
-    const unclassified = await send({ type: "GET_LIBRARY", query: { status: "current", category: "待分类", offset: 0, limit: 500 } });
+    const unclassified = await send({ type: "GET_LIBRARY", query: { status: "current", category: "待分类", offset: 0, limit: 5000 } });
     if (!unclassified.ok) return toast(unclassified.error, true);
     ids = unclassified.items.map((item) => item.id);
   }

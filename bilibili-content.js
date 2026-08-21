@@ -17,11 +17,13 @@
       const text = C.clean(card.innerText);
       const durations = text.match(/(?:\d{1,3}:)?\d{1,2}:\d{2}(?:\s*\/\s*(?:\d{1,3}:)?\d{1,2}:\d{2})?/g) || [];
       const author = card.querySelector('[class*="author" i], [class*="up-name" i], [class*="upname" i], [class*="owner" i]');
+      const nativeCategory = card.querySelector('[data-tname], [class*="partition" i], [class*="category" i]');
       const image = card.querySelector("img");
       const item = C.normalizeBilibiliCandidate({
         href: anchor.href, title, creator: author?.textContent,
         durationText: durations.at(-1), progressText: durations.find((value) => value.includes("/")),
-        thumbnailUrl: image?.currentSrc || image?.src || image?.getAttribute("data-src")
+        thumbnailUrl: image?.currentSrc || image?.src || image?.getAttribute("data-src"),
+        nativeCategory: nativeCategory?.dataset?.tname || nativeCategory?.textContent
       });
       if (item) result.set(item.id, item);
     }

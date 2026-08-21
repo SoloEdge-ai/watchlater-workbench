@@ -101,5 +101,14 @@
     return { ...classified, priorityScore: computePriorityScore(classified, weights, now) };
   }
 
-  return { DEFAULT_RULES, clamp, clean, sanitizeRules, classifyVideo, mergeVideoRecord, enrichVideo, computePriorityScore };
+  function createSerialQueue() {
+    let tail = Promise.resolve();
+    return function run(task) {
+      const result = tail.then(task, task);
+      tail = result.catch(() => undefined);
+      return result;
+    };
+  }
+
+  return { DEFAULT_RULES, clamp, clean, sanitizeRules, classifyVideo, mergeVideoRecord, enrichVideo, computePriorityScore, createSerialQueue };
 });

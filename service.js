@@ -13,6 +13,7 @@
     youtube: ["https://www.youtube.com/playlist?list=WL*", "https://youtube.com/playlist?list=WL*"]
   };
   const CACHE_KEY = "bwcMetadataCache";
+  const withWriteLock = Core.createSerialQueue();
   let migrationPromise;
 
   async function handleMessage(message, sender) {
@@ -22,6 +23,7 @@
       case "GET_PENDING_SYNC": return claimPendingSync(message.platform, sender.tab?.id);
       case "SOURCE_SYNC_UPSERT": return upsertSourceItems(message.platform, message.sessionId, message.items || []);
       case "SOURCE_SYNC_COMPLETE": return completeSourceSync(message.platform, message.sessionId, message.seenIds || []);
+      case "SOURCE_SYNC_FAILED": return failSourceSync(message.platform, message.sessionId, message.error);
       case "GET_LIBRARY": return getLibrary(message.query || {});
       case "UPDATE_USER_META": return updateUserMeta(message.id, message.patch || {});
       case "FETCH_BILI_METADATA": return { data: await fetchBiliMetadata(message.bvid) };
@@ -29,8 +31,6 @@
       case "SAVE_SETTINGS": return saveSettings(message.settings || {});
       case "AI_CLASSIFY": return aiClassify(message.ids || []);
       case "EXPORT_LIBRARY": return exportLibrary();
-      case "IMPORT_LIBRARY": return importLibrary(message.payload);
-      case "CLEAR_LIBRARY": await DB.clearAll(); return { cleared: true };
       default: throw new Error("未知消息类型");
     }
   }
@@ -54,9 +54,11 @@
       searchEngine: ["google", "bing", "baidu"].includes(settings.searchEngine) ? settings.searchEngine : current.settings.searchEngine,
       ai: sanitizeAiSettings(settings.ai || current.settings.ai)
     };
-    await chrome.storage.local.set({ wlwRules: next.rules, wlwSearchEngine: next.searchEngine, wlwAi: next.ai });
-    const all = await DB.getAllVideos();
-    await DB.putVideos(all.map((item) => enrichVideo(item, next.rules)));
+    await withWriteLock(async () => {
+      await chrome.storage.local.set({ wlwRules: next.rules, wlwSearchEngine: next.searchEngine, wlwAi: next.ai });
+      const all = await DB.getAllVideos();
+      await DB.putVideos(all.map((item) => enrichVideo(item, next.rules)));
+    });
     return { settings: next };
   }
 
@@ -101,29 +103,41 @@
     if (!SYNC_URLS[platform]) throw new Error("不支持的平台");
     const rules = await getRules();
     const now = Date.now();
-    const normalized = [];
     const batch = items.slice(0, 100);
-    const existingById = new Map((await DB.getVideos(batch.map((item) => item.id).filter(Boolean))).map((item) => [item.id, item]));
-    for (const incoming of batch) {
-      if (incoming.platform !== platform || !incoming.id?.startsWith(`${platform}:`)) continue;
-      const existing = existingById.get(incoming.id);
-      normalized.push(enrichVideo(mergeVideoRecord(existing, incoming, now), rules, now));
-    }
-    await DB.putVideos(normalized);
+    const normalized = await withWriteLock(async () => {
+      const output = [];
+      const existingById = new Map((await DB.getVideos(batch.map((item) => item.id).filter(Boolean))).map((item) => [item.id, item]));
+      for (const incoming of batch) {
+        if (incoming.platform !== platform || !incoming.id?.startsWith(`${platform}:`)) continue;
+        output.push(enrichVideo(mergeVideoRecord(existingById.get(incoming.id), incoming, now), rules, now));
+      }
+      await DB.putVideos(output);
+      return output;
+    });
     if (sessionId) await updateSyncStatus(platform, { state: "collecting", sessionId, countDelta: normalized.length });
     return { upserted: normalized.length };
   }
 
   async function completeSourceSync(platform, sessionId, seenIds) {
+    return withWriteLock(async () => {
+      const key = `wlwPendingSync_${platform}`;
+      const pending = (await chrome.storage.local.get(key))[key];
+      if (!pending || pending.sessionId !== sessionId) throw new Error("同步会话已失效，未执行归档");
+      const ids = [...new Set(seenIds.filter((id) => id.startsWith(`${platform}:`)))];
+      if (!ids.length) throw new Error("同步结果为空，未执行归档");
+      await DB.completeSnapshot(platform, sessionId, ids);
+      await chrome.storage.local.remove(key);
+      await updateSyncStatus(platform, { state: "complete", sessionId, count: ids.length, lastSyncAt: Date.now(), error: "" });
+      return { completed: true, count: ids.length };
+    });
+  }
+
+  async function failSourceSync(platform, sessionId, error) {
     const key = `wlwPendingSync_${platform}`;
     const pending = (await chrome.storage.local.get(key))[key];
-    if (!pending || pending.sessionId !== sessionId) throw new Error("同步会话已失效，未执行归档");
-    const ids = [...new Set(seenIds.filter((id) => id.startsWith(`${platform}:`)))];
-    if (!ids.length) throw new Error("同步结果为空，未执行归档");
-    await DB.completeSnapshot(platform, sessionId, ids);
-    await chrome.storage.local.remove(key);
-    await updateSyncStatus(platform, { state: "complete", sessionId, count: ids.length, lastSyncAt: Date.now(), error: "" });
-    return { completed: true, count: ids.length };
+    if (pending?.sessionId === sessionId) await chrome.storage.local.remove(key);
+    await updateSyncStatus(platform, { state: "error", sessionId, error: clean(error) || "同步未完成" });
+    return { failed: true };
   }
 
   async function updateSyncStatus(platform, patch) {
@@ -178,16 +192,18 @@
   }
 
   async function updateUserMeta(id, patch) {
-    const existing = await DB.getVideo(id);
-    if (!existing) throw new Error("视频不存在");
-    const allowed = {};
-    if (patch.rating === null || (Number.isInteger(patch.rating) && patch.rating >= 1 && patch.rating <= 5)) allowed.rating = patch.rating;
-    if (Object.prototype.hasOwnProperty.call(patch, "manualCategory")) allowed.manualCategory = clean(patch.manualCategory);
-    if (Array.isArray(patch.manualTags)) allowed.manualTags = patch.manualTags.map(clean).filter(Boolean).slice(0, 12);
-    if (["current", "archived"].includes(patch.status)) allowed.status = patch.status;
-    const item = enrichVideo({ ...existing, ...allowed }, await getRules());
-    await DB.putVideos([item]);
-    return { item };
+    return withWriteLock(async () => {
+      const existing = await DB.getVideo(id);
+      if (!existing) throw new Error("视频不存在");
+      const allowed = {};
+      if (patch.rating === null || (Number.isInteger(patch.rating) && patch.rating >= 1 && patch.rating <= 5)) allowed.rating = patch.rating;
+      if (Object.prototype.hasOwnProperty.call(patch, "manualCategory")) allowed.manualCategory = clean(patch.manualCategory);
+      if (Array.isArray(patch.manualTags)) allowed.manualTags = patch.manualTags.map(clean).filter(Boolean).slice(0, 12);
+      if (["current", "archived"].includes(patch.status)) allowed.status = patch.status;
+      const item = enrichVideo({ ...existing, ...allowed }, await getRules());
+      await DB.putVideos([item]);
+      return { item };
+    });
   }
 
   async function getRules() {
@@ -237,19 +253,22 @@
     const { settings } = await getSettings();
     const ai = settings.ai;
     if (!ai.enabled || !ai.apiKey || !ai.model) throw new Error("请先在设置中启用并配置 AI");
-    const items = await DB.getVideos([...new Set(ids)].slice(0, 500));
+    const items = await DB.getVideos([...new Set(ids)]);
     let updated = 0;
     for (let index = 0; index < items.length; index += 20) {
       const batch = items.slice(index, index + 20);
       const results = await requestAiBatch(ai, batch, settings.rules);
       const byId = new Map(results.map((item) => [item.id, item]));
-      const changed = batch.map((item) => {
-        const result = byId.get(item.id);
-        if (!result) return item;
-        updated += 1;
-        return enrichVideo({ ...item, aiCategory: result.primaryCategory, aiTags: (result.tags || []).map(clean).filter(Boolean).slice(0, 5), aiConfidence: Number(result.confidence || 0) }, settings.rules);
+      await withWriteLock(async () => {
+        const latest = await DB.getVideos(batch.map((item) => item.id));
+        const changed = latest.map((item) => {
+          const result = byId.get(item.id);
+          if (!result) return item;
+          updated += 1;
+          return enrichVideo({ ...item, aiCategory: result.primaryCategory, aiTags: (result.tags || []).map(clean).filter(Boolean).slice(0, 5), aiConfidence: Number(result.confidence || 0) }, settings.rules);
+        });
+        await DB.putVideos(changed);
       });
-      await DB.putVideos(changed);
     }
     return { updated };
   }
@@ -261,7 +280,7 @@
       const response = await fetch(`${ai.baseUrl.replace(/\/$/, "")}/chat/completions`, {
         method: "POST", signal: controller.signal,
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${ai.apiKey}` },
-        body: JSON.stringify({ model: ai.model, temperature: 0, messages: [
+        body: JSON.stringify({ model: ai.model, messages: [
           { role: "system", content: `你是视频分类器。主分类必须从以下列表选择：${rules.map((r) => r.name).join("、")}。只返回 JSON：{\"items\":[{\"id\":\"...\",\"primaryCategory\":\"...\",\"tags\":[最多5个],\"confidence\":0到1}]}` },
           { role: "user", content: JSON.stringify(items.map((item) => ({ id: item.id, title: item.title, creator: item.creator, platform: item.platform, nativeCategory: item.nativeCategory, durationSeconds: item.durationSeconds }))) }
         ] })
@@ -279,17 +298,6 @@
     const items = await DB.getAllVideos();
     const { settings, syncStatus } = await getSettings();
     return { payload: { version: 1, exportedAt: Date.now(), items, settings: { rules: settings.rules, searchEngine: settings.searchEngine, ai: { enabled: false, baseUrl: settings.ai.baseUrl, model: settings.ai.model, apiKey: "" } }, syncStatus } };
-  }
-
-  async function importLibrary(payload) {
-    if (payload?.version !== 1 || !Array.isArray(payload.items)) throw new Error("备份文件格式不受支持");
-    const rules = sanitizeRules(payload.settings?.rules);
-    const now = Date.now();
-    const existing = new Map((await DB.getAllVideos()).map((item) => [item.id, item]));
-    const items = payload.items.filter((item) => item?.id && item?.platform && item?.videoId).map((item) => enrichVideo(mergeVideoRecord(existing.get(item.id), item, now), rules, now));
-    await DB.putVideos(items);
-    await chrome.storage.local.set({ wlwRules: rules, wlwSearchEngine: payload.settings?.searchEngine || "google" });
-    return { imported: items.length };
   }
 
   return { handleMessage, ensureMigrated, getLibrary, updateUserMeta, completeSourceSync };

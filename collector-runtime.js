@@ -47,7 +47,7 @@
         for (const item of items) seen.set(item.id, item);
         if (fresh.length) {
           await sendBatches(adapter.platform, sessionId, fresh);
-          if (adapter.hydrate) adapter.hydrate(fresh).then((hydrated) => sendBatches(adapter.platform, sessionId, hydrated)).catch(() => {});
+          if (adapter.hydrate) adapter.hydrate(fresh).then((hydrated) => sendBatches(adapter.platform, null, hydrated)).catch(() => {});
         }
         overlay.update(`已收集 ${seen.size} 条 · 正在加载更多`);
         stableRounds = seen.size === lastCount && nearBottom() ? stableRounds + 1 : 0;
@@ -56,11 +56,13 @@
         await delay(700);
       }
       if (!seen.size) throw new Error("页面中未识别到视频，请确认已登录并打开稍后再看列表");
+      if (stableRounds < 8 || !nearBottom()) throw new Error("页面尚未稳定到达列表末尾，已保留原资料且未执行归档");
       const result = await message({ type: "SOURCE_SYNC_COMPLETE", platform: adapter.platform, sessionId, seenIds: [...seen.keys()] });
       if (!result?.ok) throw new Error(result?.error || "同步收尾失败");
       completed = true;
       overlay.update(`同步完成：${seen.size} 条`, "success");
     } catch (error) {
+      await message({ type: "SOURCE_SYNC_FAILED", platform: adapter.platform, sessionId, error: String(error?.message || error) });
       overlay.update(`同步未完成：${error.message || error}`, "error");
     } finally {
       setTimeout(() => overlay.remove(), completed ? 3500 : 8000);
