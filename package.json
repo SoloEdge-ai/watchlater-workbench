@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "test": "node --test tests/*.test.js",
-    "dev": "node --test --watch tests/*.test.js",
+    "dev": "node scripts/dev-sync.js --watch",
+    "sync:chrome": "node scripts/dev-sync.js",
     "check": "node scripts/check-extension.js"
   }
 }

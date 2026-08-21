@@ -1,8 +1,9 @@
 document.getElementById("dashboard").addEventListener("click", () => chrome.tabs.create({ url: chrome.runtime.getURL("newtab.html") }));
 document.getElementById("settings").addEventListener("click", () => chrome.runtime.openOptionsPage());
-document.getElementById("reloadExtension").addEventListener("click", () => {
+document.getElementById("reloadExtension").addEventListener("click", async () => {
   document.getElementById("status").textContent = "正在重新读取本地代码…";
-  setTimeout(() => chrome.runtime.reload(), 180);
+  const result = await chrome.runtime.sendMessage({ type: "RELOAD_EXTENSION" });
+  if (!result.ok) document.getElementById("status").textContent = result.error;
 });
 for (const button of document.querySelectorAll("[data-sync]")) button.addEventListener("click", async () => {
   const result = await chrome.runtime.sendMessage({ type: "START_SOURCE_SYNC", platform: button.dataset.sync });

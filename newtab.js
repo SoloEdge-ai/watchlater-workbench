@@ -18,9 +18,10 @@ async function init() {
 
 function bindEvents() {
   document.getElementById("settingsButton").addEventListener("click", () => chrome.runtime.openOptionsPage());
-  document.getElementById("reloadExtension").addEventListener("click", () => {
+  document.getElementById("reloadExtension").addEventListener("click", async () => {
     toast("正在重新读取本地扩展代码…");
-    setTimeout(() => chrome.runtime.reload(), 180);
+    const result = await send({ type: "RELOAD_EXTENSION" });
+    if (!result.ok) toast(result.error, true);
   });
   document.getElementById("webSearch").addEventListener("submit", (event) => {
     event.preventDefault();
@@ -41,6 +42,7 @@ function bindEvents() {
   document.getElementById("exportCsv").addEventListener("click", exportCsv);
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && changes.wlwSyncStatus) { state.syncStatus = changes.wlwSyncStatus.newValue || {}; renderSyncStatus(); }
+    if (area === "local" && changes.wlwDeveloperMode) document.getElementById("reloadExtension").classList.toggle("hidden", !changes.wlwDeveloperMode.newValue);
   });
 }
 

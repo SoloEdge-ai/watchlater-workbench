@@ -18,6 +18,7 @@ test("developer mode is opt-in and exposes reload controls without new permissio
   assert.match(options, /id="developerMode"/);
   assert.match(newtab, /id="reloadExtension"/);
   assert.match(popup, /id="developerActions"/);
-  assert.match(scripts, /chrome\.runtime\.reload\(\)/);
+  assert.equal((scripts.match(/RELOAD_EXTENSION/g) || []).length, 2);
+  assert.match(service, /chrome\.runtime\.reload\(\)/);
   assert.ok(!manifest.permissions.includes("management"));
 });

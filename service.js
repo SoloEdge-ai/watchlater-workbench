@@ -30,6 +30,7 @@
       case "FETCH_BILI_WATCH_LATER": assertCollectorSender(sender, "bilibili"); return fetchBiliWatchLater();
       case "GET_SETTINGS": return getSettings();
       case "SAVE_SETTINGS": return saveSettings(message.settings || {});
+      case "RELOAD_EXTENSION": return scheduleExtensionReload(sender);
       case "AI_CLASSIFY": return aiClassify(message.ids || []);
       case "EXPORT_LIBRARY": return exportLibrary();
       default: throw new Error("未知消息类型");
@@ -57,12 +58,21 @@
       developerMode: Object.prototype.hasOwnProperty.call(settings, "developerMode") ? Boolean(settings.developerMode) : current.settings.developerMode,
       ai: sanitizeAiSettings(settings.ai || current.settings.ai)
     };
+    const rulesChanged = JSON.stringify(next.rules) !== JSON.stringify(current.settings.rules);
     await withWriteLock(async () => {
       await chrome.storage.local.set({ wlwRules: next.rules, wlwSearchEngine: next.searchEngine, wlwDeveloperMode: next.developerMode, wlwAi: next.ai });
-      const all = await DB.getAllVideos();
-      await DB.putVideos(all.map((item) => enrichVideo(item, next.rules)));
+      if (rulesChanged) {
+        const all = await DB.getAllVideos();
+        await DB.putVideos(all.map((item) => enrichVideo(item, next.rules)));
+      }
     });
     return { settings: next };
+  }
+
+  function scheduleExtensionReload(sender) {
+    if (!String(sender?.url || "").startsWith(chrome.runtime.getURL(""))) throw new Error("只有扩展页面可以执行开发重载");
+    setTimeout(() => chrome.runtime.reload(), 180);
+    return { reloading: true };
   }
 
   function sanitizeAiSettings(value) {

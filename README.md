@@ -42,13 +42,15 @@ npm run dev
 
 - 只修改 `newtab.html`、`newtab.css` 或当前页面脚本时，刷新页面通常就能看到结果。
 - 修改后台 Service Worker、`manifest.json` 或采集脚本后，点击“开发重载”，扩展会调用 `chrome.runtime.reload()` 重新读取本地文件；随后刷新对应的工作台或平台页面。
-- `npm run dev` 会持续运行测试，但 Chrome 出于安全原因不会自动监视本地文件，因此仍需使用刷新或“开发重载”。
+- 如果 Git 仓库与 Chrome 加载目录不同，在仓库根目录创建不提交的 `.watchboard-dev.json`：`{"targetDir":"Chrome 当前加载的绝对目录"}`。`npm run sync:chrome` 单次同步，`npm run dev` 则持续监视并同步；后台或 Manifest 变化后仍需点击“开发重载”。
 
 ### Chrome 从哪里读取代码
 
-“加载已解压的扩展程序”不会把代码复制进 Chrome。Chrome 只记录当时选择的目录，并在刷新或重载扩展时从该目录重新读取文件。Git 仓库与 Chrome 也没有自动同步关系：`git pull`、编辑器或 Codex 修改了被加载目录中的文件后，Chrome 才能在下次刷新/重载时读到它们。
+“加载已解压的扩展程序”不会把代码复制进 Chrome。Chrome 只记录当时选择的目录，并在刷新或重载扩展时从该目录重新读取文件。扩展 API 不会暴露这个本地路径。Git 仓库与 Chrome 也没有自动同步关系：只有直接修改被加载目录，或先运行上述同步器，Chrome 才能在下次刷新/重载时读到新文件。
 
 不要删除或随意移动正在被 Chrome 加载的目录。目录缺失后扩展将无法启动；重新从另一个路径加载还可能得到不同的扩展 ID，从而看不到原 ID 下的 IndexedDB 和 `chrome.storage.local` 数据。移动、重装或卸载前应先导出 JSON 备份，代码则可从 GitHub 仓库重新克隆。
+
+恢复时先不要在 `chrome://extensions/` 移除原扩展：从 GitHub 把代码恢复到原来的完全相同路径，再点击“重新加载”。GitHub 只保存代码，不保存浏览器中的评分、分类和稍后再看快照；如果只能换路径并产生了新的扩展 ID，旧 ID 的本地数据不会自动迁移，只能依赖事先导出的备份。
 
 ## 权限
 
