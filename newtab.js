@@ -11,12 +11,17 @@ async function init() {
   if (!settingsResult.ok) return toast(settingsResult.error, true);
   state.settings = settingsResult.settings;
   state.syncStatus = settingsResult.syncStatus || {};
+  document.getElementById("reloadExtension").classList.toggle("hidden", !state.settings.developerMode);
   renderSyncStatus();
   await loadLibrary(true);
 }
 
 function bindEvents() {
   document.getElementById("settingsButton").addEventListener("click", () => chrome.runtime.openOptionsPage());
+  document.getElementById("reloadExtension").addEventListener("click", () => {
+    toast("正在重新读取本地扩展代码…");
+    setTimeout(() => chrome.runtime.reload(), 180);
+  });
   document.getElementById("webSearch").addEventListener("submit", (event) => {
     event.preventDefault();
     const query = document.getElementById("webQuery").value.trim();

@@ -35,9 +35,20 @@ YouTube Data API 不允许读取真正的 Watch Later，因此 YouTube 使用已
 
 ```bash
 npm test
+npm run dev
 ```
 
-扩展不需要构建步骤。修改源文件后在 `chrome://extensions/` 重新加载即可。
+扩展不需要构建步骤。先在设置页开启“开发模式”，工作台顶部和扩展弹窗会出现“开发重载”：
+
+- 只修改 `newtab.html`、`newtab.css` 或当前页面脚本时，刷新页面通常就能看到结果。
+- 修改后台 Service Worker、`manifest.json` 或采集脚本后，点击“开发重载”，扩展会调用 `chrome.runtime.reload()` 重新读取本地文件；随后刷新对应的工作台或平台页面。
+- `npm run dev` 会持续运行测试，但 Chrome 出于安全原因不会自动监视本地文件，因此仍需使用刷新或“开发重载”。
+
+### Chrome 从哪里读取代码
+
+“加载已解压的扩展程序”不会把代码复制进 Chrome。Chrome 只记录当时选择的目录，并在刷新或重载扩展时从该目录重新读取文件。Git 仓库与 Chrome 也没有自动同步关系：`git pull`、编辑器或 Codex 修改了被加载目录中的文件后，Chrome 才能在下次刷新/重载时读到它们。
+
+不要删除或随意移动正在被 Chrome 加载的目录。目录缺失后扩展将无法启动；重新从另一个路径加载还可能得到不同的扩展 ID，从而看不到原 ID 下的 IndexedDB 和 `chrome.storage.local` 数据。移动、重装或卸载前应先导出 JSON 备份，代码则可从 GitHub 仓库重新克隆。
 
 ## 权限
 

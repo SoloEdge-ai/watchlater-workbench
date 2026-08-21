@@ -23,7 +23,8 @@ button, select { cursor: pointer; }
 .web-search { height: 43px; box-shadow: 0 6px 22px rgba(30,41,61,.05); }
 .web-search input, .library-search input { min-width: 0; width: 100%; border: 0; outline: 0; background: transparent; }
 kbd { color: #9199a5; border: 1px solid #d9dee5; border-radius: 5px; padding: 2px 6px; font: 10px inherit; }
-.icon-button { justify-self: end; width: 40px; height: 40px; border: 1px solid var(--line); border-radius: 12px; background: white; color: #556071; }
+.top-actions { justify-self:end; display:flex; align-items:center; gap:8px; }.icon-button { width: 40px; height: 40px; border: 1px solid var(--line); border-radius: 12px; background: white; color: #556071; }
+.dev-reload { height:40px; padding:0 12px; color:#c4476f; background:#fff2f6; border:1px solid #ffd0de; border-radius:11px; font-size:11px; font-weight:700; }
 .hero { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 40px; padding: 66px 4px 32px; }
 .eyebrow { color: var(--pink); font-size: 11px; font-weight: 800; letter-spacing: .18em; }
 h1 { max-width: none; margin: 10px 0 12px; font-size: clamp(32px,4.3vw,54px); line-height: 1.08; letter-spacing: -.045em; white-space: nowrap; }

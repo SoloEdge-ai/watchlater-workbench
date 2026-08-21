@@ -23,6 +23,13 @@
       <section class="panel">
         <h2>数据与备份</h2><div class="data-actions"><button id="exportData">导出 JSON 备份</button></div>
       </section>
+      <section class="panel">
+        <div class="section-head"><div><h2>开发模式</h2><p>为本地“加载已解压”开发启用重载入口，不会自动监视或上传文件。</p></div><label class="switch"><input id="developerMode" type="checkbox" /><span></span></label></div>
+        <div class="dev-note">
+          <p>普通新标签页界面修改通常只需刷新页面；后台脚本、Manifest 或采集脚本修改后，请使用“重载插件”。</p>
+          <p>Chrome 始终从最初选择的本地目录读取代码。删除或移动该目录后，扩展将无法继续加载。</p>
+        </div>
+      </section>
       <div class="savebar"><span id="status"></span><button id="save" class="primary">保存设置</button></div>
     </main>
     <script src="options.js"></script>

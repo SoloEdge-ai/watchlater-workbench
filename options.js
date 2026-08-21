@@ -20,6 +20,7 @@ function render() {
   document.getElementById("aiBaseUrl").value = settings.ai.baseUrl;
   document.getElementById("aiModel").value = settings.ai.model;
   document.getElementById("aiKey").value = settings.ai.apiKey || "";
+  document.getElementById("developerMode").checked = settings.developerMode;
   document.getElementById("rules").replaceChildren(); settings.rules.forEach(addRule);
 }
 
@@ -41,7 +42,7 @@ async function save() {
     let origin; try { const url = new URL(ai.baseUrl); origin = `${url.protocol}//${url.hostname}/*`; } catch { return setStatus("AI Base URL 无效", true); }
     const granted = await chrome.permissions.request({ origins: [origin] }); if (!granted) return setStatus("未获得 AI 接口来源权限", true);
   }
-  const result = await send({ type:"SAVE_SETTINGS", settings:{ rules, searchEngine:document.getElementById("searchEngine").value, ai } });
+  const result = await send({ type:"SAVE_SETTINGS", settings:{ rules, searchEngine:document.getElementById("searchEngine").value, developerMode:document.getElementById("developerMode").checked, ai } });
   if (!result.ok) return setStatus(result.error,true); settings=result.settings; setStatus("设置已保存，资料库已重新计算");
 }
 

@@ -37,11 +37,12 @@
   }
 
   async function getSettings() {
-    const stored = await chrome.storage.local.get(["wlwRules", "wlwSearchEngine", "wlwAi", "wlwSyncStatus"]);
+    const stored = await chrome.storage.local.get(["wlwRules", "wlwSearchEngine", "wlwAi", "wlwDeveloperMode", "wlwSyncStatus"]);
     return {
       settings: {
         rules: sanitizeRules(stored.wlwRules),
         searchEngine: stored.wlwSearchEngine || "google",
+        developerMode: Boolean(stored.wlwDeveloperMode),
         ai: stored.wlwAi || { enabled: false, baseUrl: "https://api.openai.com/v1", model: "gpt-5-mini", apiKey: "" }
       },
       syncStatus: stored.wlwSyncStatus || {}
@@ -53,10 +54,11 @@
     const next = {
       rules: settings.rules ? sanitizeRules(settings.rules) : current.settings.rules,
       searchEngine: ["google", "bing", "baidu"].includes(settings.searchEngine) ? settings.searchEngine : current.settings.searchEngine,
+      developerMode: Object.prototype.hasOwnProperty.call(settings, "developerMode") ? Boolean(settings.developerMode) : current.settings.developerMode,
       ai: sanitizeAiSettings(settings.ai || current.settings.ai)
     };
     await withWriteLock(async () => {
-      await chrome.storage.local.set({ wlwRules: next.rules, wlwSearchEngine: next.searchEngine, wlwAi: next.ai });
+      await chrome.storage.local.set({ wlwRules: next.rules, wlwSearchEngine: next.searchEngine, wlwDeveloperMode: next.developerMode, wlwAi: next.ai });
       const all = await DB.getAllVideos();
       await DB.putVideos(all.map((item) => enrichVideo(item, next.rules)));
     });
