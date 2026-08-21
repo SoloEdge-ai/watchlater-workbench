@@ -67,6 +67,70 @@ test("Bilibili full sync uses the web endpoint and returns all 404 visible items
   assert.equal(result.items.length, 404);
 });
 
+test("Bilibili full sync can use the logged-in page when the service-worker fetch fails", async () => {
+  let capturedAdapter;
+  let backgroundRequests = 0;
+  const apiBody = { code: 0, data: { count: 405, list: makeList(405) } };
+  const context = {
+    WLWCollectors: Collectors,
+    WLWSourceAdapters: require("../source-adapters.js"),
+    WLWCollectorRuntime: { start: (adapter) => { capturedAdapter = adapter; } },
+    WLWSourceActionRuntime: { start() {} },
+    document: { body: { innerText: "稍后再看 · 405" }, querySelectorAll: () => [] },
+    fetch: async (url) => {
+      assert.equal(String(url), "https://api.bilibili.com/x/v2/history/toview/web?jsonp=jsonp");
+      return { ok: true, json: async () => apiBody };
+    },
+    chrome: {
+      runtime: {
+        sendMessage: async (message) => {
+          if (message.type === "FETCH_BILI_WATCH_LATER") {
+            backgroundRequests += 1;
+            return { ok: false, error: "Failed to fetch" };
+          }
+          return { ok: false };
+        }
+      }
+    }
+  };
+  context.globalThis = context;
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "bilibili-content.js"), "utf8"), context);
+
+  const snapshot = await capturedAdapter.fetchAll();
+
+  assert.equal(snapshot.expectedCount, 405);
+  assert.equal(snapshot.items.length, 405);
+  assert.equal(backgroundRequests, 0);
+});
+
+test("Bilibili full sync falls back to the service worker when the page request fails", async () => {
+  let capturedAdapter;
+  const items = Collectors.normalizeBilibiliApiResponse({ code: 0, data: { list: makeList(405) } });
+  const context = {
+    WLWCollectors: Collectors,
+    WLWSourceAdapters: require("../source-adapters.js"),
+    WLWCollectorRuntime: { start: (adapter) => { capturedAdapter = adapter; } },
+    WLWSourceActionRuntime: { start() {} },
+    document: { body: { innerText: "稍后再看 · 405" }, querySelectorAll: () => [] },
+    fetch: async () => { throw new TypeError("Failed to fetch"); },
+    chrome: {
+      runtime: {
+        sendMessage: async (message) => {
+          assert.equal(message.type, "FETCH_BILI_WATCH_LATER");
+          return { ok: true, items, expectedCount: 405 };
+        }
+      }
+    }
+  };
+  context.globalThis = context;
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "bilibili-content.js"), "utf8"), context);
+
+  const snapshot = await capturedAdapter.fetchAll();
+
+  assert.equal(snapshot.expectedCount, 405);
+  assert.equal(snapshot.items.length, 405);
+});
+
 test("Bilibili DOM scan recognizes watch-later links whose BV id is in the query", () => {
   const href = "https://www.bilibili.com/list/watchlater/?bvid=BV1Query1234&oid=123";
   const title = "查询参数形式的稍后再看视频";

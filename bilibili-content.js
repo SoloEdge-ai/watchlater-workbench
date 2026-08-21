@@ -81,9 +81,30 @@
   }
 
   async function fetchAll() {
-    const response = await chrome.runtime.sendMessage({ type: "FETCH_BILI_WATCH_LATER" });
-    if (!response?.ok || !Array.isArray(response.items)) throw new Error(response?.error || "无法读取 B站稍后再看列表");
-    return { items: response.items, expectedCount: response.expectedCount };
+    let pageError = "";
+    try {
+      const response = await fetch("https://api.bilibili.com/x/v2/history/toview/web?jsonp=jsonp", {
+        credentials: "include",
+        headers: { Accept: "application/json" }
+      });
+      if (!response.ok) throw new Error(`B站稍后再看请求失败 (${response.status})`);
+      const body = await response.json();
+      if (body?.code !== 0 || !Array.isArray(body.data?.list)) {
+        throw new Error(body?.message || "未取得 B站稍后再看列表");
+      }
+      return {
+        items: C.normalizeBilibiliApiResponse(body),
+        expectedCount: Number(body.data.count)
+      };
+    } catch (error) {
+      pageError = String(error?.message || error);
+    }
+
+    const fallback = await chrome.runtime.sendMessage({ type: "FETCH_BILI_WATCH_LATER" });
+    if (!fallback?.ok || !Array.isArray(fallback.items)) {
+      throw new Error(fallback?.error || pageError || "无法读取 B站稍后再看列表");
+    }
+    return { items: fallback.items, expectedCount: fallback.expectedCount };
   }
 
   function expectedCount() {
