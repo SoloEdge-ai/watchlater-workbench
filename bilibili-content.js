@@ -115,6 +115,7 @@
   async function removeVideo(videoId, options = {}) {
     return SourceAdapters.removeUsingMenu({
       locateCard: () => findVideoCard(videoId),
+      findDirectRemoveButton: (card) => SourceAdapters.findBilibiliDirectRemoveButton(card),
       findMenuButton: (card) => SourceAdapters.findPlatformMenuButton(card, "bilibili"),
       findMenuItem: () => SourceAdapters.findRemovalMenuItem(document, "bilibili"),
       isPresent: () => Boolean(findVideoAnchor(videoId)),

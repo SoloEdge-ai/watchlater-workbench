@@ -169,3 +169,59 @@ test("Bilibili DOM scan recognizes watch-later links whose BV id is in the query
   assert.equal(items[0].id, "bilibili:BV1Query1234");
   assert.equal(items[0].title, title);
 });
+
+test("Bilibili removal follows the official direct action on the exact video card", async () => {
+  const videoId = "BV1Direct123";
+  let present = true;
+  let capturedAdapter;
+  let directClicks = 0;
+  const directAction = {
+    getAttribute: (name) => name === "class" ? "bili-card-aside-action" : "",
+    click() { directClicks += 1; present = false; }
+  };
+  const anchor = {
+    href: `https://www.bilibili.com/list/watchlater/?bvid=${videoId}`,
+    parentElement: null
+  };
+  const titleWrapper = {
+    innerText: "目标视频标题",
+    parentElement: null,
+    querySelectorAll: () => [anchor]
+  };
+  const card = {
+    innerText: "目标视频标题 作者 12:34",
+    parentElement: null,
+    scrollIntoView() {},
+    querySelectorAll: (selector) => selector.includes("aside-action") ? [directAction] : [anchor]
+  };
+  const body = {
+    innerText: `稍后再看 · 405 ${"x".repeat(1200)}`,
+    parentElement: null,
+    querySelectorAll: () => present ? [anchor] : []
+  };
+  anchor.parentElement = titleWrapper;
+  titleWrapper.parentElement = card;
+  card.parentElement = body;
+  const document = {
+    body,
+    documentElement: { scrollHeight: 1000 },
+    querySelectorAll: () => present ? [anchor] : []
+  };
+  const context = {
+    WLWCollectors: Collectors,
+    WLWSourceAdapters: require("../source-adapters.js"),
+    WLWCollectorRuntime: { start: (adapter) => { capturedAdapter = adapter; } },
+    WLWSourceActionRuntime: { start() {} },
+    document,
+    window: { scrollY: 0, innerHeight: 1000, scrollTo() {} },
+    chrome: { runtime: { sendMessage: async () => ({ ok: false }) } },
+    fetch: async () => { throw new Error("unused"); }
+  };
+  context.globalThis = context;
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "bilibili-content.js"), "utf8"), context);
+
+  const result = await capturedAdapter.removeVideo(videoId);
+
+  assert.equal(result.removed, true);
+  assert.equal(directClicks, 1);
+});

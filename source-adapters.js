@@ -86,6 +86,14 @@
     }) || null;
   }
 
+  function findBilibiliDirectRemoveButton(card) {
+    const candidates = card?.querySelectorAll?.(".bili-card-aside-action") || [];
+    return [...candidates].find((button) => {
+      const classes = clean(button.getAttribute?.("class")).split(" ");
+      return classes.includes("bili-card-aside-action");
+    }) || null;
+  }
+
   async function findWhileScrolling(find, environment, options = {}) {
     const maxRounds = options.maxRounds || 140;
     const requiredStableRounds = options.stableRounds || 8;
@@ -130,8 +138,15 @@
       throw new Error("已加载到列表末尾，但未找到目标视频");
     }
     card.scrollIntoView?.({ block: "center" });
+    const directRemoveButton = options.findDirectRemoveButton?.(card);
+    if (directRemoveButton) {
+      directRemoveButton.click();
+      const disappeared = await pollUntil(() => !options.isPresent(), options.disappearTimeout || 8000);
+      if (!disappeared) throw new Error("平台未确认移除：点击直接移除控件后目标视频仍在列表中");
+      return { removed: true, alreadyMissing: false };
+    }
     const menuButton = options.findMenuButton(card);
-    if (!menuButton) throw new Error(`未找到${options.platformLabel}视频的已知操作菜单，页面结构可能已变化`);
+    if (!menuButton) throw new Error(`未找到${options.platformLabel}视频的已知操作菜单或直接移除控件（已检查 dropdown/aside-action），页面结构可能已变化`);
     menuButton.click();
     const menuItem = await pollUntil(options.findMenuItem, options.menuTimeout || 4000);
     if (!menuItem) throw new Error(`未找到${options.platformLabel}精确的稍后再看移除菜单项`);
@@ -141,5 +156,5 @@
     return { removed: true, alreadyMissing: false };
   }
 
-  return { OWNER_SELECTOR, identifyYouTubeAccount, identifyBilibiliAccount, isRemovalLabel, youtubeVideoId, findYouTubeCard, findRemovalMenuItem, findPlatformMenuButton, findWhileScrolling, pageScrollEnvironment, pollUntil, removeUsingMenu };
+  return { OWNER_SELECTOR, identifyYouTubeAccount, identifyBilibiliAccount, isRemovalLabel, youtubeVideoId, findYouTubeCard, findRemovalMenuItem, findPlatformMenuButton, findBilibiliDirectRemoveButton, findWhileScrolling, pageScrollEnvironment, pollUntil, removeUsingMenu };
 });
