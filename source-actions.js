@@ -24,6 +24,7 @@
     const { storage, db, tabs, windows, Accounts } = deps;
     const now = deps.now || Date.now;
     const uuid = deps.uuid || (() => crypto.randomUUID());
+    const startQueues = new Map();
 
     const actionKey = (platform) => `wlwPendingSourceAction_${platform}`;
 
@@ -58,18 +59,27 @@
         const tab = await tabs.update(existing[0].id, { active: true }) || existing[0];
         if (tab.windowId !== undefined) await windows.update(tab.windowId, { focused: true });
         await tabs.reload(tab.id);
-        return tab;
+        return { tab, created: false };
       }
-      return tabs.create({ url: SOURCE_URLS[platform], active: true });
+      return { tab: await tabs.create({ url: SOURCE_URLS[platform], active: true }), created: true };
     }
 
-    async function start(recordId) {
+    async function closeOwnedTab(action) {
+      if (action?.ownsTab !== true || !Number.isInteger(action.tabId) || typeof tabs.remove !== "function") return;
+      try { await tabs.remove(action.tabId); }
+      catch (_) { /* The user may already have closed the action tab. */ }
+    }
+
+    async function startUnlocked(recordId) {
       await reconcile();
       const record = await db.getVideo(recordId);
       if (!record || !SOURCE_URLS[record.platform]) throw new Error("视频不存在或平台不受支持");
       const binding = (await getBindings())[record.platform];
       if (!binding || binding.id !== record.sourceAccountId) throw new Error("视频未绑定到当前平台账号，请先完成全量同步");
       const existing = await getAction(record.platform);
+      if (existing && ![STATES.COMPLETE, STATES.FAILED].includes(existing.state) && existing.recordId === record.id) {
+        return { action: existing, tabId: existing.tabId, reused: true };
+      }
       if (existing && ![STATES.COMPLETE, STATES.FAILED].includes(existing.state)) throw new Error("该平台已有删除操作正在进行");
       const action = {
         id: `${record.platform}:${now()}:${uuid()}`,
@@ -84,19 +94,33 @@
         createdAt: now(),
         updatedAt: now(),
         tabId: null,
+        ownsTab: false,
+        recoveryScheduledAt: now(),
+        recovering: false,
         error: ""
       };
       try {
         await saveAction(action);
         await updateRecord(record, { sourceRemovalState: STATES.OPENING, sourceRemovalError: "" });
-        const tab = await openSource(record.platform);
-        const opened = { ...action, tabId: tab.id, recoveryScheduledAt: now(), recovering: false, updatedAt: now() };
+        const source = await openSource(record.platform);
+        const opened = { ...action, tabId: source.tab.id, ownsTab: source.created, recoveryScheduledAt: now(), recovering: false, updatedAt: now() };
         await saveAction(opened);
-        return { action: opened, tabId: tab.id };
+        return { action: opened, tabId: source.tab.id };
       } catch (error) {
         await fail(record.platform, action.id, String(error?.message || error));
         throw error;
       }
+    }
+
+    async function start(recordId) {
+      const record = await db.getVideo(recordId);
+      if (!record || !SOURCE_URLS[record.platform]) return startUnlocked(recordId);
+      const platform = record.platform;
+      const previous = startQueues.get(platform) || Promise.resolve();
+      const current = previous.catch(() => {}).then(() => startUnlocked(recordId));
+      startQueues.set(platform, current);
+      try { return await current; }
+      finally { if (startQueues.get(platform) === current) startQueues.delete(platform); }
     }
 
     async function claim(platform, rawAccount, tabId) {
@@ -156,6 +180,8 @@
       } catch (error) {
         await saveAction({ ...succeeded, error: `平台已移除，本地归档待恢复：${String(error?.message || error)}`, updatedAt: now() });
         throw error;
+      } finally {
+        await closeOwnedTab(succeeded);
       }
     }
 
@@ -176,6 +202,7 @@
       }
       await setStatus(platform, failed);
       await storage.remove(actionKey(platform));
+      await closeOwnedTab(failed);
       return { failed: true, action: failed, localError };
     }
 
@@ -191,16 +218,18 @@
             const recoveryError = `平台已移除，本地归档待恢复：${String(error?.message || error)}`;
             if (action.error !== recoveryError) await saveAction({ ...action, error: recoveryError, updatedAt: now() });
           }
+          finally { await closeOwnedTab(action); }
         } else if (now() - action.createdAt > MAX_AGE) {
           await fail(platform, action.id, "平台删除操作已超时");
         } else if ([STATES.OPENING, STATES.CLAIMED, STATES.REMOVING].includes(action.state)
           && (options.force === true || !action.recoveryScheduledAt || now() - action.recoveryScheduledAt >= RECOVERY_REDRIVE_AFTER)) {
           try {
-            const tab = await openSource(platform);
+            const source = await openSource(platform);
             const recovered = {
               ...action,
               state: STATES.OPENING,
-              tabId: tab.id,
+              tabId: source.tab.id,
+              ownsTab: source.created || (action.ownsTab === true && action.tabId === source.tab.id),
               recovering: action.recovering === true || action.state === STATES.REMOVING,
               recoveryScheduledAt: now(),
               updatedAt: now(),

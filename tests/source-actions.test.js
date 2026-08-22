@@ -3,15 +3,21 @@ const assert = require("node:assert/strict");
 const Accounts = require("../source-accounts.js");
 const { createSourceActionCoordinator } = require("../source-actions.js");
 
-function createHarness({ failPut = false } = {}) {
+function createHarness({ failPut = false, platform = "youtube", existingTabs = [], onCreate } = {}) {
+  const isBilibili = platform === "bilibili";
+  const account = isBilibili
+    ? { platform, id: "mid:123", name: "Peng", url: "https://space.bilibili.com/123" }
+    : { platform, id: "handle:@peng", name: "Peng", url: "https://www.youtube.com/@peng" };
+  const videoId = isBilibili ? "BV1test123" : "video123";
+  const recordId = `${platform}:${videoId}`;
   const data = {
     wlwSourceBindings: {
-      youtube: { platform: "youtube", id: "handle:@peng", name: "Peng", url: "https://www.youtube.com/@peng" }
+      [platform]: account
     }
   };
-  const records = new Map([["youtube:video123", {
-    id: "youtube:video123", platform: "youtube", videoId: "video123", title: "Test video",
-    sourceAccountId: "handle:@peng", sourceAccountName: "Peng", status: "current"
+  const records = new Map([[recordId, {
+    id: recordId, platform, videoId, title: "Test video",
+    sourceAccountId: account.id, sourceAccountName: account.name, status: "current"
   }]]);
   const storage = {
     get: async (keys) => {
@@ -29,16 +35,78 @@ function createHarness({ failPut = false } = {}) {
       for (const item of items) records.set(item.id, item);
     }
   };
+  const createdTabs = [];
+  const removedTabs = [];
   const tabs = {
-    query: async () => [],
-    create: async () => ({ id: 22, windowId: 3 }),
+    query: async () => existingTabs,
+    create: async (details) => {
+      const tab = { id: 22 + createdTabs.length, windowId: 3, ...details };
+      createdTabs.push(tab);
+      if (onCreate) await onCreate(tab);
+      return tab;
+    },
+    remove: async (tabId) => { removedTabs.push(tabId); },
     update: async () => {},
     reload: async () => {}
   };
   let clock = 1000;
   const coordinator = createSourceActionCoordinator({ storage, db, tabs, windows: { update: async () => {} }, Accounts, now: () => clock, uuid: () => "action" });
-  return { coordinator, data, records, setFailPut: (value) => { shouldFailPut = value; }, setNow: (value) => { clock = value; } };
+  return {
+    coordinator, data, records, account, platform, videoId, recordId, createdTabs, removedTabs,
+    setFailPut: (value) => { shouldFailPut = value; },
+    setNow: (value) => { clock = value; }
+  };
 }
+
+test("recovery messages during Bilibili tab startup do not open a second tab", async () => {
+  let harness;
+  let reentered = false;
+  harness = createHarness({
+    platform: "bilibili",
+    onCreate: async () => {
+      if (reentered) return;
+      reentered = true;
+      await harness.coordinator.reconcile();
+    }
+  });
+
+  await harness.coordinator.start(harness.recordId);
+
+  assert.equal(harness.createdTabs.length, 1);
+});
+
+test("one Bilibili removal opens at most one action tab", async () => {
+  const harness = createHarness({ platform: "bilibili" });
+
+  const first = harness.coordinator.start(harness.recordId);
+  const second = harness.coordinator.start(harness.recordId);
+  const [firstResult, secondResult] = await Promise.all([first, second]);
+
+  assert.equal(harness.createdTabs.length, 1);
+  assert.equal(firstResult.action.id, secondResult.action.id);
+});
+
+test("a newly-created action tab closes after success", async () => {
+  const harness = createHarness({ platform: "bilibili" });
+  const started = await harness.coordinator.start(harness.recordId);
+  const tabId = started.action.tabId;
+  const claimed = await harness.coordinator.claim(harness.platform, harness.account, tabId);
+
+  await harness.coordinator.complete(harness.platform, claimed.action.id, tabId);
+
+  assert.deepEqual(harness.removedTabs, [tabId]);
+});
+
+test("a reused user tab stays open after success", async () => {
+  const existingTab = { id: 41, windowId: 7, url: "https://www.bilibili.com/watchlater/list#/list" };
+  const harness = createHarness({ platform: "bilibili", existingTabs: [existingTab] });
+  const started = await harness.coordinator.start(harness.recordId);
+  const claimed = await harness.coordinator.claim(harness.platform, harness.account, started.action.tabId);
+
+  await harness.coordinator.complete(harness.platform, claimed.action.id, started.action.tabId);
+
+  assert.deepEqual(harness.removedTabs, []);
+});
 
 test("platform removal archives locally only after the matching account reports success", async () => {
   const harness = createHarness();
