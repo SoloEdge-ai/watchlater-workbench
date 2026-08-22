@@ -58,9 +58,8 @@ test("shared removal workflow clicks only a known menu path and confirms disappe
     findMenuButton: () => null,
     findMenuItem: () => null,
     isPresent: () => true,
-    platformLabel: "测试平台",
-    describeControls: () => "card=root;global=0/0"
-  }), /操作菜单.*诊断：card=root;global=0\/0/);
+    platformLabel: "测试平台"
+  }), /操作菜单/);
 });
 
 test("shared removal workflow supports Bilibili's exact direct card action", async () => {
@@ -144,6 +143,21 @@ test("Bilibili direct remove control requires the exact official aside-action cl
 
   assert.equal(Adapters.findBilibiliDirectRemoveButton(card), exact);
   assert.equal(Adapters.findBilibiliDirectRemoveButton({ querySelectorAll: () => [fuzzy] }), null);
+});
+
+test("Bilibili grid delete control requires the exact official wrapper and control classes", () => {
+  const exact = { getAttribute: (name) => name === "class" ? "video-card__delete" : "" };
+  const gridCard = {
+    getAttribute: (name) => name === "class" ? "video-card video-card--grid" : "",
+    querySelectorAll: (selector) => selector.includes("video-card__delete") ? [exact] : []
+  };
+  const listCard = {
+    getAttribute: (name) => name === "class" ? "video-card video-card--list" : "",
+    querySelectorAll: (selector) => selector.includes("video-card__delete") ? [exact] : []
+  };
+
+  assert.equal(Adapters.findBilibiliDirectRemoveButton(gridCard), exact);
+  assert.equal(Adapters.findBilibiliDirectRemoveButton(listCard), null);
 });
 
 test("progressive item lookup shares one stable end-of-list policy", async () => {

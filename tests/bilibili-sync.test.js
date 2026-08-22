@@ -170,13 +170,13 @@ test("Bilibili DOM scan recognizes watch-later links whose BV id is in the query
   assert.equal(items[0].title, title);
 });
 
-test("Bilibili removal follows the official direct action on the exact video card", async () => {
+test("Bilibili removal follows the official grid delete control on the exact video wrapper", async () => {
   const videoId = "BV1Direct123";
   let present = true;
   let capturedAdapter;
   let directClicks = 0;
   const directAction = {
-    getAttribute: (name) => name === "class" ? "bili-card-aside-action" : "",
+    getAttribute: (name) => name === "class" ? "video-card__delete" : "",
     click() { directClicks += 1; present = false; }
   };
   const anchor = {
@@ -184,11 +184,19 @@ test("Bilibili removal follows the official direct action on the exact video car
     parentElement: null,
     closest: () => null
   };
-  const card = {
+  const innerCard = {
     innerText: "目标视频标题 作者 12:34",
     parentElement: null,
     scrollIntoView() {},
-    querySelectorAll: (selector) => selector.includes("aside-action") ? [directAction] : [anchor]
+    querySelectorAll: () => [anchor]
+  };
+  const card = {
+    className: "video-card video-card--grid",
+    innerText: "目标视频标题 作者 12:34",
+    parentElement: null,
+    scrollIntoView() {},
+    getAttribute: (name) => name === "class" ? "video-card video-card--grid" : "",
+    querySelectorAll: (selector) => selector.includes("video-card__delete") ? [directAction] : [anchor]
   };
   const body = {
     innerText: `稍后再看 · 405 ${"x".repeat(1200)}`,
@@ -202,8 +210,9 @@ test("Bilibili removal follows the official direct action on the exact video car
   }));
   anchor.parentElement = wrappers[0];
   for (let index = 0; index < wrappers.length - 1; index += 1) wrappers[index].parentElement = wrappers[index + 1];
-  wrappers.at(-1).parentElement = card;
-  anchor.closest = (selector) => selector === ".bili-video-card" ? card : null;
+  wrappers.at(-1).parentElement = innerCard;
+  innerCard.parentElement = card;
+  anchor.closest = (selector) => selector === ".bili-video-card" ? innerCard : selector === ".video-card" ? card : null;
   card.parentElement = body;
   const document = {
     body,

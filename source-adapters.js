@@ -87,10 +87,19 @@
   }
 
   function findBilibiliDirectRemoveButton(card) {
-    const candidates = card?.querySelectorAll?.(".bili-card-aside-action") || [];
-    return [...candidates].find((button) => {
+    const asideActions = card?.querySelectorAll?.(".bili-card-aside-action") || [];
+    const asideAction = [...asideActions].find((button) => {
       const classes = clean(button.getAttribute?.("class")).split(" ");
       return classes.includes("bili-card-aside-action");
+    });
+    if (asideAction) return asideAction;
+
+    const cardClasses = clean(card?.getAttribute?.("class")).split(" ");
+    if (!cardClasses.includes("video-card") || !cardClasses.includes("video-card--grid")) return null;
+    const gridActions = card?.querySelectorAll?.(".video-card__delete") || [];
+    return [...gridActions].find((button) => {
+      const classes = clean(button.getAttribute?.("class")).split(" ");
+      return classes.includes("video-card__delete");
     }) || null;
   }
 
@@ -146,11 +155,7 @@
       return { removed: true, alreadyMissing: false };
     }
     const menuButton = options.findMenuButton(card);
-    if (!menuButton) {
-      let diagnostic = "";
-      try { diagnostic = clean(options.describeControls?.(card)); } catch { diagnostic = "unavailable"; }
-      throw new Error(`未找到${options.platformLabel}视频的已知操作菜单或直接移除控件（已检查 dropdown/aside-action），页面结构可能已变化${diagnostic ? `；诊断：${diagnostic}` : ""}`);
-    }
+    if (!menuButton) throw new Error(`未找到${options.platformLabel}视频的已知操作菜单或直接移除控件，页面结构可能已变化`);
     menuButton.click();
     const menuItem = await pollUntil(options.findMenuItem, options.menuTimeout || 4000);
     if (!menuItem) throw new Error(`未找到${options.platformLabel}精确的稍后再看移除菜单项`);
