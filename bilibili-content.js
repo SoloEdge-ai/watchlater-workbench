@@ -46,6 +46,10 @@
   }
 
   function findCard(anchor, bvid) {
+    const pageCard = anchor.closest?.(".video-card");
+    if (isExactCard(pageCard, bvid)) return pageCard;
+    const officialCard = anchor.closest?.(".bili-video-card");
+    if (isExactCard(officialCard, bvid)) return officialCard;
     let node = anchor;
     let best = null;
     for (let depth = 0; depth < 8 && node && node !== document.body; depth += 1) {
@@ -58,6 +62,16 @@
       if (ids.size > 1 || text.length > 1000) break;
     }
     return best || anchor.parentElement;
+  }
+
+  function isExactCard(card, bvid) {
+    if (!card) return false;
+    const ids = new Set(
+      [...card.querySelectorAll(C.BILIBILI_LINK_SELECTOR)]
+        .map((link) => C.extractBilibiliVideoId(link.href))
+        .filter(Boolean)
+    );
+    return ids.size === 1 && ids.has(bvid);
   }
 
   function likelyTitle(value) {
@@ -81,9 +95,30 @@
   }
 
   async function fetchAll() {
-    const response = await chrome.runtime.sendMessage({ type: "FETCH_BILI_WATCH_LATER" });
-    if (!response?.ok || !Array.isArray(response.items)) throw new Error(response?.error || "无法读取 B站稍后再看列表");
-    return { items: response.items, expectedCount: response.expectedCount };
+    let pageError = "";
+    try {
+      const response = await fetch("https://api.bilibili.com/x/v2/history/toview/web?jsonp=jsonp", {
+        credentials: "include",
+        headers: { Accept: "application/json" }
+      });
+      if (!response.ok) throw new Error(`B站稍后再看请求失败 (${response.status})`);
+      const body = await response.json();
+      if (body?.code !== 0 || !Array.isArray(body.data?.list)) {
+        throw new Error(body?.message || "未取得 B站稍后再看列表");
+      }
+      return {
+        items: C.normalizeBilibiliApiResponse(body),
+        expectedCount: Number(body.data.count)
+      };
+    } catch (error) {
+      pageError = String(error?.message || error);
+    }
+
+    const fallback = await chrome.runtime.sendMessage({ type: "FETCH_BILI_WATCH_LATER" });
+    if (!fallback?.ok || !Array.isArray(fallback.items)) {
+      throw new Error(fallback?.error || pageError || "无法读取 B站稍后再看列表");
+    }
+    return { items: fallback.items, expectedCount: fallback.expectedCount };
   }
 
   function expectedCount() {
@@ -94,6 +129,7 @@
   async function removeVideo(videoId, options = {}) {
     return SourceAdapters.removeUsingMenu({
       locateCard: () => findVideoCard(videoId),
+      findDirectRemoveButton: (card) => SourceAdapters.findBilibiliDirectRemoveButton(card),
       findMenuButton: (card) => SourceAdapters.findPlatformMenuButton(card, "bilibili"),
       findMenuItem: () => SourceAdapters.findRemovalMenuItem(document, "bilibili"),
       isPresent: () => Boolean(findVideoAnchor(videoId)),
@@ -115,6 +151,7 @@
   function findVideoAnchor(videoId) {
     return [...document.querySelectorAll(C.BILIBILI_LINK_SELECTOR)].find((link) => C.extractBilibiliVideoId(link.href) === videoId) || null;
   }
+
 
   const adapter = { platform: "bilibili", label: "B站稍后再看", readySelector: C.BILIBILI_LINK_SELECTOR, identifyAccount, scan, hydrate, fetchAll, expectedCount, removeVideo };
   WLWCollectorRuntime.start(adapter);

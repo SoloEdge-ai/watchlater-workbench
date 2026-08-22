@@ -62,6 +62,23 @@ test("shared removal workflow clicks only a known menu path and confirms disappe
   }), /操作菜单/);
 });
 
+test("shared removal workflow supports Bilibili's exact direct card action", async () => {
+  let present = true;
+  let directClicks = 0;
+  const card = { scrollIntoView() {} };
+  const result = await Adapters.removeUsingMenu({
+    locateCard: async () => card,
+    findDirectRemoveButton: () => ({ click() { directClicks += 1; present = false; } }),
+    findMenuButton: () => { throw new Error("menu path must not run"); },
+    findMenuItem: () => { throw new Error("menu path must not run"); },
+    isPresent: () => present,
+    platformLabel: "B站"
+  });
+
+  assert.equal(result.removed, true);
+  assert.equal(directClicks, 1);
+});
+
 test("restart recovery can converge when the exact video is already absent", async () => {
   const result = await Adapters.removeUsingMenu({
     locateCard: async () => null,
@@ -99,6 +116,48 @@ test("Bilibili menu buttons require known semantics rather than fuzzy class name
   const card = { querySelectorAll: () => [fuzzy, unknownMenu, exact] };
   assert.equal(Adapters.findPlatformMenuButton(card, "bilibili"), exact);
   assert.equal(Adapters.findPlatformMenuButton({ querySelectorAll: () => [fuzzy, unknownMenu] }, "bilibili"), null);
+});
+
+test("Bilibili menu button recognizes the current official card dropdown component", () => {
+  const dropdown = {
+    getAttribute: (name) => name === "class" ? "bili-card-dropdown" : ""
+  };
+  const card = { querySelectorAll: () => [dropdown] };
+
+  assert.equal(Adapters.findPlatformMenuButton(card, "bilibili"), dropdown);
+});
+
+test("Bilibili removal item recognizes the current official dropdown popper component", () => {
+  const item = { textContent: "移出稍后再看", closest: () => null };
+  const document = {
+    querySelectorAll: (selector) => selector.includes(".bili-card-dropdown-popper__item") ? [item] : []
+  };
+
+  assert.equal(Adapters.findRemovalMenuItem(document, "bilibili"), item);
+});
+
+test("Bilibili direct remove control requires the exact official aside-action class", () => {
+  const fuzzy = { getAttribute: (name) => name === "class" ? "aside-action-random" : "" };
+  const exact = { getAttribute: (name) => name === "class" ? "bili-card-aside-action bili-card-aside-action--visible" : "" };
+  const card = { querySelectorAll: () => [fuzzy, exact] };
+
+  assert.equal(Adapters.findBilibiliDirectRemoveButton(card), exact);
+  assert.equal(Adapters.findBilibiliDirectRemoveButton({ querySelectorAll: () => [fuzzy] }), null);
+});
+
+test("Bilibili grid delete control requires the exact official wrapper and control classes", () => {
+  const exact = { getAttribute: (name) => name === "class" ? "video-card__delete" : "" };
+  const gridCard = {
+    getAttribute: (name) => name === "class" ? "video-card video-card--grid" : "",
+    querySelectorAll: (selector) => selector.includes("video-card__delete") ? [exact] : []
+  };
+  const listCard = {
+    getAttribute: (name) => name === "class" ? "video-card video-card--list" : "",
+    querySelectorAll: (selector) => selector.includes("video-card__delete") ? [exact] : []
+  };
+
+  assert.equal(Adapters.findBilibiliDirectRemoveButton(gridCard), exact);
+  assert.equal(Adapters.findBilibiliDirectRemoveButton(listCard), null);
 });
 
 test("progressive item lookup shares one stable end-of-list policy", async () => {

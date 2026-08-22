@@ -65,7 +65,8 @@
   }
 
   function findRemovalMenuItem(document, platform) {
-    const selector = "ytd-menu-service-item-renderer, tp-yt-paper-item, [role='menuitem'], .vui_popover li, .vui_popover button";
+    const selector = "ytd-menu-service-item-renderer, tp-yt-paper-item, [role='menuitem'], .vui_popover li, .vui_popover button"
+      + (platform === "bilibili" ? ", .bili-card-dropdown-popper__item" : "");
     return [...(document?.querySelectorAll?.(selector) || [])].find((item) => {
       const hidden = item.closest?.("[hidden], [aria-hidden='true']");
       return !hidden && isRemovalLabel(platform, item.textContent);
@@ -73,10 +74,32 @@
   }
 
   function findPlatformMenuButton(card, platform) {
-    const candidates = card?.querySelectorAll?.("button, [role='button']") || [];
+    const selector = platform === "bilibili"
+      ? "button, [role='button'], .bili-card-dropdown"
+      : "button, [role='button']";
+    const candidates = card?.querySelectorAll?.(selector) || [];
     return [...candidates].find((button) => {
       const label = clean(button.getAttribute?.("aria-label") || button.getAttribute?.("title"));
-      return MENU_BUTTON_LABELS[platform]?.has(label) === true;
+      if (MENU_BUTTON_LABELS[platform]?.has(label) === true) return true;
+      const classes = clean(button.getAttribute?.("class")).split(" ");
+      return platform === "bilibili" && classes.includes("bili-card-dropdown");
+    }) || null;
+  }
+
+  function findBilibiliDirectRemoveButton(card) {
+    const asideActions = card?.querySelectorAll?.(".bili-card-aside-action") || [];
+    const asideAction = [...asideActions].find((button) => {
+      const classes = clean(button.getAttribute?.("class")).split(" ");
+      return classes.includes("bili-card-aside-action");
+    });
+    if (asideAction) return asideAction;
+
+    const cardClasses = clean(card?.getAttribute?.("class")).split(" ");
+    if (!cardClasses.includes("video-card") || !cardClasses.includes("video-card--grid")) return null;
+    const gridActions = card?.querySelectorAll?.(".video-card__delete") || [];
+    return [...gridActions].find((button) => {
+      const classes = clean(button.getAttribute?.("class")).split(" ");
+      return classes.includes("video-card__delete");
     }) || null;
   }
 
@@ -124,8 +147,15 @@
       throw new Error("已加载到列表末尾，但未找到目标视频");
     }
     card.scrollIntoView?.({ block: "center" });
+    const directRemoveButton = options.findDirectRemoveButton?.(card);
+    if (directRemoveButton) {
+      directRemoveButton.click();
+      const disappeared = await pollUntil(() => !options.isPresent(), options.disappearTimeout || 8000);
+      if (!disappeared) throw new Error("平台未确认移除：点击直接移除控件后目标视频仍在列表中");
+      return { removed: true, alreadyMissing: false };
+    }
     const menuButton = options.findMenuButton(card);
-    if (!menuButton) throw new Error(`未找到${options.platformLabel}视频的已知操作菜单，页面结构可能已变化`);
+    if (!menuButton) throw new Error(`未找到${options.platformLabel}视频的已知操作菜单或直接移除控件，页面结构可能已变化`);
     menuButton.click();
     const menuItem = await pollUntil(options.findMenuItem, options.menuTimeout || 4000);
     if (!menuItem) throw new Error(`未找到${options.platformLabel}精确的稍后再看移除菜单项`);
@@ -135,5 +165,5 @@
     return { removed: true, alreadyMissing: false };
   }
 
-  return { OWNER_SELECTOR, identifyYouTubeAccount, identifyBilibiliAccount, isRemovalLabel, youtubeVideoId, findYouTubeCard, findRemovalMenuItem, findPlatformMenuButton, findWhileScrolling, pageScrollEnvironment, pollUntil, removeUsingMenu };
+  return { OWNER_SELECTOR, identifyYouTubeAccount, identifyBilibiliAccount, isRemovalLabel, youtubeVideoId, findYouTubeCard, findRemovalMenuItem, findPlatformMenuButton, findBilibiliDirectRemoveButton, findWhileScrolling, pageScrollEnvironment, pollUntil, removeUsingMenu };
 });
