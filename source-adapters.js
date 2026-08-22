@@ -146,7 +146,11 @@
       return { removed: true, alreadyMissing: false };
     }
     const menuButton = options.findMenuButton(card);
-    if (!menuButton) throw new Error(`未找到${options.platformLabel}视频的已知操作菜单或直接移除控件（已检查 dropdown/aside-action），页面结构可能已变化`);
+    if (!menuButton) {
+      let diagnostic = "";
+      try { diagnostic = clean(options.describeControls?.(card)); } catch { diagnostic = "unavailable"; }
+      throw new Error(`未找到${options.platformLabel}视频的已知操作菜单或直接移除控件（已检查 dropdown/aside-action），页面结构可能已变化${diagnostic ? `；诊断：${diagnostic}` : ""}`);
+    }
     menuButton.click();
     const menuItem = await pollUntil(options.findMenuItem, options.menuTimeout || 4000);
     if (!menuItem) throw new Error(`未找到${options.platformLabel}精确的稍后再看移除菜单项`);

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "稍后再看工作台",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAiMPVi/bXIkLl0L49xdGjGRjZSH2UY6BQuNbnmPYYpMhhVwG9paJTldMoxLvyMNnPwPkYHZAcbQYBVULpgzB2y0XJJgMCZX29uZk5Wi14ugU80dw9o95l07lWj/jxDRaI1lst0T1HPXs7eq+XvNdZ6rx8QzQOqro6WSFqHOrBWMYXBA7Zv71SQRPOoI6jIwhWRwl/ZAq7Rsr13LX4nCfwPAsrQG6yEAdtiOhfKLlH9CAf3B5BtIlBY5gt/t8JHq+xSPQUdYlmLbzIit8PA+flhib9WFbC87zyRRAPuRtm2X5F70HVwaIpMBvArdw97OAEgnm7ZmrjUy9DlvkvGp0R9QIDAQAB",
   "description": "在新标签页统一整理 B站与 YouTube 稍后再看。",
   "permissions": ["activeTab", "storage", "tabs"],

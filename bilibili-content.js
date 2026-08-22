@@ -127,6 +127,7 @@
       findDirectRemoveButton: (card) => SourceAdapters.findBilibiliDirectRemoveButton(card),
       findMenuButton: (card) => SourceAdapters.findPlatformMenuButton(card, "bilibili"),
       findMenuItem: () => SourceAdapters.findRemovalMenuItem(document, "bilibili"),
+      describeControls: (card) => describeRemovalControls(card, videoId),
       isPresent: () => Boolean(findVideoAnchor(videoId)),
       platformLabel: "B站",
       allowAlreadyMissing: options.allowAlreadyMissing === true
@@ -145,6 +146,38 @@
 
   function findVideoAnchor(videoId) {
     return [...document.querySelectorAll(C.BILIBILI_LINK_SELECTOR)].find((link) => C.extractBilibiliVideoId(link.href) === videoId) || null;
+  }
+
+  function describeRemovalControls(card, videoId) {
+    const anchor = findVideoAnchor(videoId);
+    const officialCard = anchor?.closest?.(".bili-video-card") || null;
+    const path = [];
+    let node = anchor;
+    for (let depth = 0; node && depth < 12; depth += 1) {
+      path.push(nodeLabel(node));
+      if (node === document.body) break;
+      node = node.parentElement;
+    }
+    return [
+      `card=${nodeLabel(card)}`,
+      `official=${nodeLabel(officialCard)}`,
+      `cardControls=${count(card, ".bili-card-dropdown")}/${count(card, ".bili-card-aside-action")}`,
+      `pageControls=${count(document, ".bili-card-dropdown")}/${count(document, ".bili-card-aside-action")}`,
+      `cards=${count(document, ".bili-video-card")}`,
+      `path=${path.join(">")}`
+    ].join(";");
+  }
+
+  function count(node, selector) {
+    try { return node?.querySelectorAll?.(selector)?.length ?? -1; } catch { return -1; }
+  }
+
+  function nodeLabel(node) {
+    if (!node) return "none";
+    const tag = String(node.tagName || "node").toLowerCase();
+    const rawClass = typeof node.className === "string" ? node.className : node.getAttribute?.("class");
+    const classes = C.clean(rawClass).split(" ").filter(Boolean).slice(0, 6).join(".");
+    return `${tag}${classes ? `.${classes}` : ""}`;
   }
 
   const adapter = { platform: "bilibili", label: "B站稍后再看", readySelector: C.BILIBILI_LINK_SELECTOR, identifyAccount, scan, hydrate, fetchAll, expectedCount, removeVideo };

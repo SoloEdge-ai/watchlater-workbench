@@ -58,8 +58,9 @@ test("shared removal workflow clicks only a known menu path and confirms disappe
     findMenuButton: () => null,
     findMenuItem: () => null,
     isPresent: () => true,
-    platformLabel: "测试平台"
-  }), /操作菜单/);
+    platformLabel: "测试平台",
+    describeControls: () => "card=root;global=0/0"
+  }), /操作菜单.*诊断：card=root;global=0\/0/);
 });
 
 test("shared removal workflow supports Bilibili's exact direct card action", async () => {
