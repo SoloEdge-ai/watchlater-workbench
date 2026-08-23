@@ -9,6 +9,24 @@ test("Bilibili candidate becomes a normalized platform record", () => {
   assert.equal(item.nativeCategory, "计算机技术");
 });
 
+test("Bilibili API thumbnails are upgraded to HTTPS for the extension image CSP", () => {
+  const [item] = collectors.normalizeBilibiliApiResponse({
+    code: 0,
+    data: {
+      count: 1,
+      list: [{
+        bvid: "BV1ABC123",
+        title: "Linux 内核导读",
+        owner: { name: "系统作者" },
+        duration: 120,
+        pic: "http://i0.hdslb.com/bfs/archive/example.jpg"
+      }]
+    }
+  }, 1000);
+
+  assert.equal(item.thumbnailUrl, "https://i0.hdslb.com/bfs/archive/example.jpg");
+});
+
 test("YouTube candidate strips playlist tracking and normalizes duration", () => {
   const item = collectors.normalizeYouTubeCandidate({ href: "https://www.youtube.com/watch?v=abc_DEF-12&list=WL&index=4", title: "A useful systems talk", creator: "Systems Channel", durationText: "24:10", thumbnailUrl: "https://i.ytimg.com/vi/abc_DEF-12/hqdefault.jpg" }, 2000);
   assert.equal(item.id, "youtube:abc_DEF-12"); assert.equal(item.url, "https://www.youtube.com/watch?v=abc_DEF-12"); assert.equal(item.durationSeconds, 1450);

@@ -108,6 +108,22 @@ test("successful first full sync commits the binding and stamps legacy platform 
   assert.equal(harness.writes.at(-1).sourceAccountName, "张三");
 });
 
+test("library output upgrades legacy Bilibili thumbnail URLs without requiring a resync", async () => {
+  const legacy = {
+    id: "bilibili:BVlegacy",
+    platform: "bilibili",
+    videoId: "BVlegacy",
+    title: "旧记录",
+    status: "current",
+    thumbnailUrl: "http://i0.hdslb.com/bfs/archive/legacy.jpg"
+  };
+  const harness = createHarness({}, [legacy]);
+
+  const result = await harness.service.handleMessage({ type: "GET_LIBRARY", query: {} }, { url: "chrome-extension://test/newtab.html" });
+
+  assert.equal(result.items[0].thumbnailUrl, "https://i0.hdslb.com/bfs/archive/legacy.jpg");
+});
+
 test("source export excludes the AI key and clearing affects only the selected platform", async () => {
   const bindings = {
     bilibili: { id: "mid:12345", name: "张三" },

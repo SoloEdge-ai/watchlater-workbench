@@ -27,7 +27,11 @@
   function absoluteUrl(value, base) {
     if (!value) return "";
     if (value.startsWith("//")) return `https:${value}`;
-    try { return new URL(value, base).href; } catch { return ""; }
+    try {
+      const url = new URL(value, base);
+      if (url.protocol === "http:") url.protocol = "https:";
+      return url.href;
+    } catch { return ""; }
   }
 
   function extractBilibiliVideoId(value) {

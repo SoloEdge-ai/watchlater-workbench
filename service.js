@@ -287,8 +287,13 @@
     const offset = Math.max(0, Number(query.offset || 0));
     const limit = Math.min(5000, Math.max(1, Number(query.limit || 60)));
     const current = all.filter((item) => item.status === "current");
+    const items = filtered.slice(offset, offset + limit).map((item) => {
+      const base = item.platform === "bilibili" ? "https://www.bilibili.com/" : "https://www.youtube.com/";
+      const thumbnailUrl = Collectors.absoluteUrl(item.thumbnailUrl, base);
+      return thumbnailUrl && thumbnailUrl !== item.thumbnailUrl ? { ...item, thumbnailUrl } : item;
+    });
     return {
-      items: filtered.slice(offset, offset + limit), total: filtered.length, nextOffset: offset + limit < filtered.length ? offset + limit : null,
+      items, total: filtered.length, nextOffset: offset + limit < filtered.length ? offset + limit : null,
       facets: { categories: countValues(current.map((item) => item.category || "待分类")), tags: countValues(current.flatMap((item) => item.tags || [])) },
       stats: { total: all.length, current: current.length, archived: all.length - current.length, bilibili: current.filter((i) => i.platform === "bilibili").length, youtube: current.filter((i) => i.platform === "youtube").length }
     };
@@ -361,7 +366,7 @@
     if (!response.ok) throw new Error(`B站元数据请求失败 (${response.status})`);
     const body = await response.json();
     if (body.code !== 0 || !body.data) throw new Error(body.message || "未取得视频元数据");
-    const data = { title: body.data.title || "", creator: body.data.owner?.name || "", nativeCategory: body.data.tname || "", durationSeconds: body.data.duration || null, publishedAt: body.data.pubdate ? body.data.pubdate * 1000 : null, thumbnailUrl: body.data.pic || "", cachedAt: Date.now() };
+    const data = { title: body.data.title || "", creator: body.data.owner?.name || "", nativeCategory: body.data.tname || "", durationSeconds: body.data.duration || null, publishedAt: body.data.pubdate ? body.data.pubdate * 1000 : null, thumbnailUrl: Collectors.absoluteUrl(body.data.pic, "https://www.bilibili.com/"), cachedAt: Date.now() };
     const latest = (await chrome.storage.local.get(CACHE_KEY))[CACHE_KEY] || {};
     latest[bvid] = data;
     await chrome.storage.local.set({ [CACHE_KEY]: latest });
