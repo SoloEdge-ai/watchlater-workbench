@@ -1,0 +1,7 @@
+node_modules/
+*.zip
+*.pem
+*.der
+.DS_Store
+Thumbs.db
+.watchboard-dev.json

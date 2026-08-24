@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "稍后再看工作台",
+  "version": "0.6.4",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAiMPVi/bXIkLl0L49xdGjGRjZSH2UY6BQuNbnmPYYpMhhVwG9paJTldMoxLvyMNnPwPkYHZAcbQYBVULpgzB2y0XJJgMCZX29uZk5Wi14ugU80dw9o95l07lWj/jxDRaI1lst0T1HPXs7eq+XvNdZ6rx8QzQOqro6WSFqHOrBWMYXBA7Zv71SQRPOoI6jIwhWRwl/ZAq7Rsr13LX4nCfwPAsrQG6yEAdtiOhfKLlH9CAf3B5BtIlBY5gt/t8JHq+xSPQUdYlmLbzIit8PA+flhib9WFbC87zyRRAPuRtm2X5F70HVwaIpMBvArdw97OAEgnm7ZmrjUy9DlvkvGp0R9QIDAQAB",
+  "description": "在新标签页统一整理 B站、YouTube 稍后再看与 X 收藏。",
+  "permissions": ["activeTab", "storage", "tabs"],
+  "host_permissions": [
+    "https://www.bilibili.com/*",
+    "https://api.bilibili.com/*",
+    "https://www.youtube.com/*",
+    "https://youtube.com/*",
+    "https://x.com/*"
+  ],
+  "optional_host_permissions": ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "稍后再看工作台",
+    "default_popup": "popup.html"
+  },
+  "chrome_url_overrides": {
+    "newtab": "newtab.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.bilibili.com/watchlater/*"],
+      "js": ["collectors.js", "source-accounts.js", "source-adapters.js", "collector-runtime.js", "source-action-runtime.js", "bilibili-content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.youtube.com/playlist*", "https://youtube.com/playlist*"],
+      "js": ["collectors.js", "source-accounts.js", "source-adapters.js", "collector-runtime.js", "source-action-runtime.js", "youtube-content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://x.com/i/history*", "https://x.com/i/bookmarks*", "https://x.com/*/status/*"],
+      "js": ["collectors.js", "source-accounts.js", "source-adapters.js", "x-adapter.js", "collector-runtime.js", "source-action-runtime.js", "x-content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "options.html",
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; img-src 'self' https: data:;"
+  }
+}

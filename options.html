@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>Watchboard 设置</title><link rel="stylesheet" href="options.css" /></head>
+  <body>
+    <main>
+      <header><div><p>WATCHBOARD</p><h1>设置</h1><span>配置分类、搜索和可选 AI。所有个人数据默认只保存在浏览器本地。</span></div><button id="openDashboard">返回工作台</button></header>
+      <section class="panel">
+        <h2>新标签页搜索</h2>
+        <label class="field"><span>默认搜索引擎</span><select id="searchEngine"><option value="google">Google</option><option value="bing">Bing</option><option value="baidu">百度</option></select></label>
+      </section>
+      <section class="panel">
+        <div class="section-head"><div><h2>平台账号绑定</h2><p>全量同步会绑定一个稳定账号。删除同步只允许作用于完全匹配的账号。</p></div></div>
+        <div id="sourceBindings" class="source-bindings"></div>
+      </section>
+      <section class="panel">
+        <div class="section-head"><div><h2>本地分类规则</h2><p>关键词以逗号分隔；兴趣权重会影响智能分。</p></div><button id="addRule">添加分类</button></div>
+        <div id="rules" class="rules"></div>
+      </section>
+      <section class="panel">
+        <div class="section-head"><div><h2>OpenAI 兼容分类</h2><p>默认关闭。仅在工作台手动触发时发送最少的内容元数据。</p></div><label class="switch"><input id="aiEnabled" type="checkbox" /><span></span></label></div>
+        <div class="ai-grid">
+          <label class="field"><span>Base URL</span><input id="aiBaseUrl" placeholder="https://api.openai.com/v1" /></label>
+          <label class="field"><span>模型</span><input id="aiModel" placeholder="gpt-5-mini" /></label>
+          <label class="field full"><span>API Key（仅本机保存，不导出）</span><input id="aiKey" type="password" autocomplete="off" placeholder="sk-…" /></label>
+        </div>
+      </section>
+      <section class="panel">
+        <h2>数据与备份</h2><div class="data-actions"><button id="exportData">导出 JSON 备份</button></div>
+      </section>
+      <section class="panel">
+        <div class="section-head"><div><h2>开发模式</h2><p>为本地“加载已解压”开发启用重载入口，不会自动监视或上传文件。</p></div><label class="switch"><input id="developerMode" type="checkbox" /><span></span></label></div>
+        <div class="dev-note">
+          <p>普通新标签页界面修改通常只需刷新页面；后台脚本、Manifest 或采集脚本修改后，请使用“重载插件”。</p>
+          <p>Chrome 始终从最初选择的本地目录读取代码。删除或移动该目录后，扩展将无法继续加载。</p>
+        </div>
+      </section>
+      <div class="savebar"><span id="status"></span><button id="save" class="primary">保存设置</button></div>
+    </main>
+    <script src="options.js"></script>
+  </body>
+</html>

@@ -1,0 +1,12 @@
+{
+  "name": "watchlater-workbench",
+  "version": "0.6.4",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "dev": "node scripts/dev-sync.js --watch",
+    "sync:chrome": "node scripts/dev-sync.js",
+    "extension:id": "node scripts/extension-id.js",
+    "check": "node scripts/check-extension.js"
+  }
+}
