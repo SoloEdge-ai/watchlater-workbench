@@ -2,6 +2,10 @@
 
 Watchboard is a Chrome Manifest V3 extension that turns the new tab page into a local workspace for Bilibili Watch Later, YouTube Watch Later, and X Bookmarks.
 
+![Watchboard overview](docs/assets/watchboard-overview.png)
+
+The screenshot is generated from synthetic library data and contains no account identifiers, credentials, browser history, or local filesystem paths.
+
 ## Features
 
 - Search, filter, sort, and review content from all supported platforms.
@@ -11,6 +15,25 @@ Watchboard is a Chrome Manifest V3 extension that turns the new tab page into a 
 - Store the library in IndexedDB and export it as JSON or CSV.
 - Remove or restore one source item only after exact account and item verification.
 - Filter content independently by platform and by content type: video or post.
+
+## Project Structure
+
+```text
+watchlater-workbench/
+├── src/
+│   ├── background/  # Service worker, persistence, and message orchestration
+│   ├── content/     # Platform collectors and source-action runtimes
+│   ├── shared/      # Domain logic shared across extension contexts
+│   └── ui/          # New-tab dashboard, popup, settings, and styles
+├── docs/assets/     # Documentation images
+├── scripts/         # Development, validation, and extension-ID tools
+├── tests/           # Node test suite and DOM fixtures
+├── manifest.json    # Chrome extension entry point
+├── package.json
+└── README.md
+```
+
+The repository root remains the directory selected by **Load unpacked**. Chrome follows the paths declared in `manifest.json` into `src/`.
 
 ## Installation and Upgrades
 

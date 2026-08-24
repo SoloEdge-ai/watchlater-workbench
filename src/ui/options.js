@@ -9,7 +9,7 @@ async function init() {
 }
 
 function bindEvents() {
-  document.getElementById("openDashboard").addEventListener("click", () => chrome.tabs.create({ url: chrome.runtime.getURL("newtab.html") }));
+  document.getElementById("openDashboard").addEventListener("click", () => chrome.tabs.create({ url: chrome.runtime.getURL("src/ui/newtab.html") }));
   document.getElementById("addRule").addEventListener("click", () => addRule({ name: "", keywords: [], weight: 0 }));
   document.getElementById("save").addEventListener("click", save);
   document.getElementById("exportData").addEventListener("click", exportData);

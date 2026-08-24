@@ -7,19 +7,19 @@ const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "manifest
 const read = (name) => fs.readFileSync(path.join(__dirname, "..", name), "utf8");
 
 test("manifest overrides the new tab and installs all account-safe page adapters", () => {
-  assert.equal(manifest.chrome_url_overrides.newtab, "newtab.html");
+  assert.equal(manifest.chrome_url_overrides.newtab, "src/ui/newtab.html");
   assert.ok(manifest.content_scripts.some((entry) => entry.matches.some((match) => match.includes("bilibili.com/watchlater"))));
   assert.ok(manifest.content_scripts.some((entry) => entry.matches.some((match) => match.includes("youtube.com/playlist"))));
   const xEntry = manifest.content_scripts.find((entry) => entry.matches.some((match) => match.includes("x.com/i/history")));
   assert.ok(xEntry);
   assert.ok(xEntry.matches.some((match) => match.includes("x.com/i/bookmarks")));
   assert.ok(xEntry.matches.some((match) => match.includes("x.com/*/status")));
-  assert.ok(xEntry.js.includes("x-adapter.js"));
-  assert.ok(xEntry.js.includes("x-content.js"));
+  assert.ok(xEntry.js.includes("src/content/x-adapter.js"));
+  assert.ok(xEntry.js.includes("src/content/x-content.js"));
   for (const entry of manifest.content_scripts) {
-    assert.ok(entry.js.includes("source-accounts.js"));
-    assert.ok(entry.js.includes("source-adapters.js"));
-    assert.ok(entry.js.includes("source-action-runtime.js"));
+    assert.ok(entry.js.includes("src/shared/source-accounts.js"));
+    assert.ok(entry.js.includes("src/shared/source-adapters.js"));
+    assert.ok(entry.js.includes("src/content/source-action-runtime.js"));
   }
 });
 
@@ -34,10 +34,10 @@ test("AI hosts are optional rather than blanket install-time access", () => {
 });
 
 test("platform removal adapters use page controls rather than direct write requests", () => {
-  const adapters = `${read("bilibili-content.js")}\n${read("youtube-content.js")}\n${read("x-content.js")}\n${read("x-adapter.js")}\n${read("source-adapters.js")}\n${read("source-action-runtime.js")}`;
+  const adapters = `${read("src/content/bilibili-content.js")}\n${read("src/content/youtube-content.js")}\n${read("src/content/x-content.js")}\n${read("src/content/x-adapter.js")}\n${read("src/shared/source-adapters.js")}\n${read("src/content/source-action-runtime.js")}`;
   assert.doesNotMatch(adapters, /method\s*:\s*["'](?:POST|PUT|PATCH|DELETE)["']/i);
   assert.match(adapters, /menuItem\.click\(\)/);
-  assert.doesNotMatch(read("bilibili-content.js"), /class\*=['"]more/i);
-  assert.match(read("x-content.js"), /处于 Likes，未执行收藏同步/);
-  assert.doesNotMatch(read("x-content.js"), /\.click\(\)/);
+  assert.doesNotMatch(read("src/content/bilibili-content.js"), /class\*=['"]more/i);
+  assert.match(read("src/content/x-content.js"), /处于 Likes，未执行收藏同步/);
+  assert.doesNotMatch(read("src/content/x-content.js"), /\.click\(\)/);
 });

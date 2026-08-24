@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
-const Collectors = require("../collectors.js");
+const Collectors = require("../src/shared/collectors.js");
 
 function makeList(length) {
   return Array.from({ length }, (_, index) => ({
@@ -54,7 +54,7 @@ test("Bilibili full sync uses the web endpoint and returns all 404 visible items
     }
   };
   context.globalThis = context;
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "service.js"), "utf8"), context);
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "src", "background", "service.js"), "utf8"), context);
 
   const result = await context.WLWService.handleMessage(
     { type: "FETCH_BILI_WATCH_LATER" },
@@ -73,7 +73,7 @@ test("Bilibili full sync can use the logged-in page when the service-worker fetc
   const apiBody = { code: 0, data: { count: 405, list: makeList(405) } };
   const context = {
     WLWCollectors: Collectors,
-    WLWSourceAdapters: require("../source-adapters.js"),
+      WLWSourceAdapters: require("../src/shared/source-adapters.js"),
     WLWCollectorRuntime: { start: (adapter) => { capturedAdapter = adapter; } },
     WLWSourceActionRuntime: { start() {} },
     document: { body: { innerText: "稍后再看 · 405" }, querySelectorAll: () => [] },
@@ -94,7 +94,7 @@ test("Bilibili full sync can use the logged-in page when the service-worker fetc
     }
   };
   context.globalThis = context;
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "bilibili-content.js"), "utf8"), context);
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "src", "content", "bilibili-content.js"), "utf8"), context);
 
   const snapshot = await capturedAdapter.fetchAll();
 
@@ -108,7 +108,7 @@ test("Bilibili full sync falls back to the service worker when the page request 
   const items = Collectors.normalizeBilibiliApiResponse({ code: 0, data: { list: makeList(405) } });
   const context = {
     WLWCollectors: Collectors,
-    WLWSourceAdapters: require("../source-adapters.js"),
+      WLWSourceAdapters: require("../src/shared/source-adapters.js"),
     WLWCollectorRuntime: { start: (adapter) => { capturedAdapter = adapter; } },
     WLWSourceActionRuntime: { start() {} },
     document: { body: { innerText: "稍后再看 · 405" }, querySelectorAll: () => [] },
@@ -123,7 +123,7 @@ test("Bilibili full sync falls back to the service worker when the page request 
     }
   };
   context.globalThis = context;
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "bilibili-content.js"), "utf8"), context);
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "src", "content", "bilibili-content.js"), "utf8"), context);
 
   const snapshot = await capturedAdapter.fetchAll();
 
@@ -152,7 +152,7 @@ test("Bilibili DOM scan recognizes watch-later links whose BV id is in the query
   anchor.parentElement = card;
   const context = {
     WLWCollectors: Collectors,
-    WLWSourceAdapters: require("../source-adapters.js"),
+      WLWSourceAdapters: require("../src/shared/source-adapters.js"),
     WLWCollectorRuntime: { start: (adapter) => { capturedAdapter = adapter; } },
     WLWSourceActionRuntime: { start() {} },
     document: {
@@ -161,7 +161,7 @@ test("Bilibili DOM scan recognizes watch-later links whose BV id is in the query
     }
   };
   context.globalThis = context;
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "bilibili-content.js"), "utf8"), context);
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "src", "content", "bilibili-content.js"), "utf8"), context);
 
   const items = capturedAdapter.scan();
 
@@ -221,7 +221,7 @@ test("Bilibili removal follows the official grid delete control on the exact vid
   };
   const context = {
     WLWCollectors: Collectors,
-    WLWSourceAdapters: require("../source-adapters.js"),
+      WLWSourceAdapters: require("../src/shared/source-adapters.js"),
     WLWCollectorRuntime: { start: (adapter) => { capturedAdapter = adapter; } },
     WLWSourceActionRuntime: { start() {} },
     document,
@@ -230,7 +230,7 @@ test("Bilibili removal follows the official grid delete control on the exact vid
     fetch: async () => { throw new Error("unused"); }
   };
   context.globalThis = context;
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "bilibili-content.js"), "utf8"), context);
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "src", "content", "bilibili-content.js"), "utf8"), context);
 
   const result = await capturedAdapter.removeVideo(videoId);
 

@@ -28,7 +28,7 @@ test("X content adapter resolves the shared source-adapter global during sync", 
     WLWSourceActionRuntime: { start() {} }
   };
   context.globalThis = context;
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "x-content.js"), "utf8"), context);
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "src", "content", "x-content.js"), "utf8"), context);
 
   await assert.rejects(capturedAdapter.fetchAll(), /处于 Likes，未执行收藏同步/);
 });

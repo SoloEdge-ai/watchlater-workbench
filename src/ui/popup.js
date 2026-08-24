@@ -1,4 +1,4 @@
-document.getElementById("dashboard").addEventListener("click", () => chrome.tabs.create({ url: chrome.runtime.getURL("newtab.html") }));
+document.getElementById("dashboard").addEventListener("click", () => chrome.tabs.create({ url: chrome.runtime.getURL("src/ui/newtab.html") }));
 document.getElementById("settings").addEventListener("click", () => chrome.runtime.openOptionsPage());
 document.getElementById("reloadExtension").addEventListener("click", async () => {
   document.getElementById("status").textContent = "正在重新读取本地代码…";

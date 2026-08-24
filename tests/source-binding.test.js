@@ -3,10 +3,10 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
-const Core = require("../core.js");
-const Collectors = require("../collectors.js");
-const Accounts = require("../source-accounts.js");
-const collectorRuntimeSource = fs.readFileSync(path.join(__dirname, "..", "collector-runtime.js"), "utf8");
+const Core = require("../src/shared/core.js");
+const Collectors = require("../src/shared/collectors.js");
+const Accounts = require("../src/shared/source-accounts.js");
+const collectorRuntimeSource = fs.readFileSync(path.join(__dirname, "..", "src", "content", "collector-runtime.js"), "utf8");
 
 function createHarness(initial = {}, items = []) {
   const data = { wlwMigratedV1: true, ...initial };
@@ -44,7 +44,7 @@ function createHarness(initial = {}, items = []) {
     fetch: async () => { throw new Error("unexpected fetch"); }
   };
   context.globalThis = context;
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "service.js"), "utf8"), context);
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "src", "background", "service.js"), "utf8"), context);
   return { service: context.WLWService, data, writes, deletedPlatforms };
 }
 

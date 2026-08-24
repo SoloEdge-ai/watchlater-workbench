@@ -1,4 +1,4 @@
-importScripts("core.js", "db.js", "collectors.js", "source-accounts.js", "source-actions.js", "service.js");
+importScripts("../shared/core.js", "db.js", "../shared/collectors.js", "../shared/source-accounts.js", "../shared/source-actions.js", "service.js");
 
 chrome.runtime.onInstalled.addListener(() => WLWService.reconcileSourceActions(true));
 chrome.runtime.onStartup.addListener(() => WLWService.reconcileSourceActions(true));

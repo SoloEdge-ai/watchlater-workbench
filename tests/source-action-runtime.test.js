@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const Runtime = require("../source-action-runtime.js");
+const Runtime = require("../src/content/source-action-runtime.js");
 
 test("page action removes only after the background claims the matching account", async () => {
   const messages = [];

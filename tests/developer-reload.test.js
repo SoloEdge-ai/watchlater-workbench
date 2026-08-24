@@ -4,15 +4,15 @@ const assert = require("node:assert/strict");
 test("background reload requires developer mode and a trusted extension page", async () => {
   let enabled = false;
   let reloads = 0;
-  global.WLWCore = require("../core.js");
+global.WLWCore = require("../src/shared/core.js");
   global.WLWDatabase = {};
   global.WLWCollectors = {};
   global.chrome = {
     runtime: { getURL: (path = "") => `chrome-extension://test/${path}`, reload: () => { reloads += 1; } },
     storage: { local: { get: async () => ({ wlwDeveloperMode: enabled }) } }
   };
-  delete require.cache[require.resolve("../service.js")];
-  require("../service.js");
+delete require.cache[require.resolve("../src/background/service.js")];
+require("../src/background/service.js");
   const sender = { url: "chrome-extension://test/newtab.html" };
 
   await assert.rejects(() => global.WLWService.scheduleExtensionReload(sender), /启用开发模式/);

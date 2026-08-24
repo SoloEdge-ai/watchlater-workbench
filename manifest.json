@@ -14,33 +14,33 @@
   ],
   "optional_host_permissions": ["https://*/*", "http://localhost/*", "http://127.0.0.1/*"],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "src/background/background.js"
   },
   "action": {
     "default_title": "稍后再看工作台",
-    "default_popup": "popup.html"
+    "default_popup": "src/ui/popup.html"
   },
   "chrome_url_overrides": {
-    "newtab": "newtab.html"
+    "newtab": "src/ui/newtab.html"
   },
   "content_scripts": [
     {
       "matches": ["https://www.bilibili.com/watchlater/*"],
-      "js": ["collectors.js", "source-accounts.js", "source-adapters.js", "collector-runtime.js", "source-action-runtime.js", "bilibili-content.js"],
+      "js": ["src/shared/collectors.js", "src/shared/source-accounts.js", "src/shared/source-adapters.js", "src/content/collector-runtime.js", "src/content/source-action-runtime.js", "src/content/bilibili-content.js"],
       "run_at": "document_idle"
     },
     {
       "matches": ["https://www.youtube.com/playlist*", "https://youtube.com/playlist*"],
-      "js": ["collectors.js", "source-accounts.js", "source-adapters.js", "collector-runtime.js", "source-action-runtime.js", "youtube-content.js"],
+      "js": ["src/shared/collectors.js", "src/shared/source-accounts.js", "src/shared/source-adapters.js", "src/content/collector-runtime.js", "src/content/source-action-runtime.js", "src/content/youtube-content.js"],
       "run_at": "document_idle"
     },
     {
       "matches": ["https://x.com/i/history*", "https://x.com/i/bookmarks*", "https://x.com/*/status/*"],
-      "js": ["collectors.js", "source-accounts.js", "source-adapters.js", "x-adapter.js", "collector-runtime.js", "source-action-runtime.js", "x-content.js"],
+      "js": ["src/shared/collectors.js", "src/shared/source-accounts.js", "src/shared/source-adapters.js", "src/content/x-adapter.js", "src/content/collector-runtime.js", "src/content/source-action-runtime.js", "src/content/x-content.js"],
       "run_at": "document_idle"
     }
   ],
-  "options_page": "options.html",
+  "options_page": "src/ui/options.html",
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'; img-src 'self' https: data:;"
   }

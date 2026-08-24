@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const core = require("../core.js");
+const core = require("../src/shared/core.js");
 
 test("priority score follows the documented worked example", () => {
   const now = Date.parse("2026-08-21T00:00:00Z");

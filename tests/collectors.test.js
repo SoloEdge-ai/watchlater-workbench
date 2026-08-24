@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const collectors = require("../collectors.js");
+const collectors = require("../src/shared/collectors.js");
 
 test("Bilibili candidate becomes a normalized platform record", () => {
   const item = collectors.normalizeBilibiliCandidate({ href: "https://www.bilibili.com/video/BV1ABC123?p=1", title: "Linux 内核导读", creator: "系统作者", durationText: "01:02:03", progressText: "12:30/01:02:03", thumbnailUrl: "//i0.hdslb.com/example.jpg", nativeCategory: "计算机技术" }, 1000);

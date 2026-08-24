@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const XAdapter = require("../x-adapter.js");
+const XAdapter = require("../src/content/x-adapter.js");
 const { xPostFixture, fixtures } = require("./fixtures/x-posts.js");
 
 test("X semantic fixtures cover ordinary, image, video, Article, external, and quoted posts", () => {

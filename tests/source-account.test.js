@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const Accounts = require("../source-accounts.js");
+const Accounts = require("../src/shared/source-accounts.js");
 
 test("source accounts use stable platform identifiers rather than display names", () => {
   assert.deepEqual(

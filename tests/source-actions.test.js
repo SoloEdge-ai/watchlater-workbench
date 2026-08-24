@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const Accounts = require("../source-accounts.js");
-const { createSourceActionCoordinator } = require("../source-actions.js");
+const Accounts = require("../src/shared/source-accounts.js");
+const { createSourceActionCoordinator } = require("../src/shared/source-actions.js");
 
 function createHarness({ failPut = false, platform = "youtube", existingTabs = [], onCreate, archived = false } = {}) {
   const isBilibili = platform === "bilibili";

@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
-const Collectors = require("../collectors.js");
+const Collectors = require("../src/shared/collectors.js");
 
 test("collector waits for the X account control before claiming a pending sync", async () => {
   let accountReadyChecks = 0;
@@ -47,7 +47,7 @@ test("collector waits for the X account control before claiming a pending sync",
     }
   };
   context.globalThis = context;
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "collector-runtime.js"), "utf8"), context);
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "src", "content", "collector-runtime.js"), "utf8"), context);
 
   const account = { id: "handle:@fridenzhang", name: "Friden" };
   await context.WLWCollectorRuntime.start({

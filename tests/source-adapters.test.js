@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const Adapters = require("../source-adapters.js");
+const Adapters = require("../src/shared/source-adapters.js");
 
 test("YouTube account identity prefers a stable channel id and falls back to a handle", () => {
   const channel = { href: "https://www.youtube.com/channel/UCabc_123", textContent: "Peng Zhang" };
